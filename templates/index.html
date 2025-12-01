@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+        content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>Highly-distinguishable Colormap Generation</title>
+
+
+    <link href="/static/css/style.css?v=20251201_v6" rel="stylesheet" />
+
+    <script type="text/javascript" src="/static/js/lib/d3.v4.min.js"></script>
+    <script type="text/javascript" src="/static/js/lib/c3.min.js"></script>
+    <script type="text/javascript" src="/static/js/lib/d3.color.min.js"></script>
+</head>
+
+<body>
+    <!-- Page Header -->
+    <div style="max-width: 1400px; margin: 0 auto 30px; text-align: center; color: white;">
+        <h1 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+            <span style="font-size: 3rem; vertical-align: middle;">🎨</span> Distinguishable Colormap Generator
+        </h1>
+        <p style="font-size: 1.1rem; opacity: 0.9; font-weight: 300; max-width: 600px; margin: 0 auto;">
+            Create perceptually uniform and highly-distinguishable colormaps for complex scalar field visualizations using advanced optimization algorithms.
+        </p>
+    </div>
+    
+    <div class="mainDiv">
+        <div class="leftDiv">
+            <div class="buttonDiv">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Parameter Panel</h3>
+                    <span title="Adjust settings here" style="cursor: help; opacity: 0.5;">ℹ️</span>
+                </div>
+                <hr>
+                <div>
+                    <button onclick="F_Open_dialog()">📁 Load Scalar Field</button>
+                    <span id="yourDataPathId" style="font-size: 0.8rem; color: #888;">...</span>
+                </div>
+                <input type="file" id="fileLoad" style="display:none">
+                <div>
+                    <select onchange="selectExample(this)">
+                        <option value="">📚 Load Example Data</option>
+                        <option value="0">Example 1 (D15)</option>
+                        <option value="1">Example 2 (Brain)</option>
+                        <option value="2">Example 3 (TLC)</option>
+                        <option value="3">Example 4 (HR)</option>
+                    </select>
+                </div>
+                <div>
+                    <button onclick="generateColormap()">✨ Generate Colormap</button>
+                    <select onchange="selectControlPointsNumber(this.value)" style="margin-top: 5px;">
+                        <option value="0">🎨 Auto Number of Colors</option>
+                        <option value="1">1 Color</option>
+                        <option value="2">2 Colors</option>
+                        <option value="3">3 Colors</option>
+                        <option value="4">4 Colors</option>
+                        <option value="5">5 Colors</option>
+                        <option value="6">6 Colors</option>
+                        <option value="7">7 Colors</option>
+                        <option value="8">8 Colors</option>
+                        <option value="9">9 Colors</option>
+                    </select>
+                </div>
+                <div style="display: none; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
+                    <span id="statusId" style="color: #666;">⏳ Processing...</span>
+                    <span id="scoreId" style="font-weight: bold; color: var(--primary-color);">Score: 0.00</span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <label style="font-weight: 500;">🤖 Auto-Optimization:</label>
+                    <label class="switch">
+                        <input type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div>
+                    <select onchange="downloadColormap(this)">
+                        <option value="">💾 Export Colormap</option>
+                        <option value="0">Control Points (TXT)</option>
+                        <option value="1">RGB Table + Points</option>
+                        <option value="2">RGB Table Only</option>
+                    </select>
+                </div>
+            </div>
+            <div class="renderDiv">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Render Preview</h3>
+                    <div class="view-tabs" style="display: flex; gap: 5px;">
+                        <button id="btn-view-2d" class="tab-btn active" onclick="switchRenderView('2d')">Map</button>
+                        <button id="btn-view-3d" class="tab-btn" onclick="switchRenderView('3d')">Lab 3D</button>
+                    </div>
+                </div>
+                <hr>
+                <div class="canvasDiv" style="position: relative;">
+                    <div class="empty-state">
+                        <span style="font-size: 3rem; opacity: 0.3;">📊</span>
+                        <p style="margin-top: 10px; color: var(--text-secondary);">Load data to visualize</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="middleDiv">
+            <div class="colormapDiv">
+                <h3>Colormap Editor</h3>
+                <hr>
+                <div class="colormap-content"></div>
+            </div>
+            <div class="controlDiv">
+                <div style="padding-bottom: 10px;">
+                    <h3>Color Wheel Control</h3>
+                    <hr>
+                </div>
+                <div class="control-content" style="flex: 1; display: flex; justify-content: center; align-items: center; min-height: 300px;">
+                    <!-- SVG content -->
+                </div>
+                <div class="control-info" style="min-height: 120px; background: #f8f9fa; border-radius: 4px; margin-top: auto; border: 1px solid #eee;">
+                    <div style="padding: 15px; text-align: center; color: #999; display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                        <span style="font-size: 1.5rem; opacity: 0.3; margin-bottom: 5px;">👆</span>
+                        Select or drag a control point<br>to see detailed color information
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="rightDiv">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>History</h3>
+                <button onclick="d3.select('.historyDiv').html('')" style="padding: 2px 8px; font-size: 0.7rem; background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color);">Clear</button>
+            </div>
+            <hr>
+            <div class="historyDiv">
+                <div style="text-align: center; padding: 20px; color: var(--text-secondary); opacity: 0.6;">
+                    No history yet
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.6); font-size: 0.9rem;">
+        <p>&copy; 2025 Distinguishable Colormap Generator. All rights reserved.</p>
+    </div>
+
+    <!-- Hidden containers -->
+    <div id="zoomDiv"></div>
+    <div id="chartDiv"></div>
+    <div id="exampleDiv"></div>
+</body>
+
+<script type="text/javascript" src="/static/js/notification.js"></script>
+<script type="text/javascript" src="/static/js/globalVariables.js"></script>
+<script type="text/javascript" src="/static/js/index.js"></script>
+<script type="text/javascript" src="/static/js/dataObj.js"></script>
+<script type="text/javascript" src="/static/js/render.js"></script>
+<script type="text/javascript" src="/static/js/optimizer.js"></script>
+<script type="text/javascript" src="/static/js/example.js"></script>
+
+<script>
+    // getRGB2LabExtent()
+    fetch("/static/data/D15.txt")
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('网络响应失败');
+            }
+            return response.text(); // 读取文件内容为文本
+        })
+        .then(data => {
+            // console.log('文件内容:', data);
+            d3.select("#statusId").style("display", "block")
+            document.body.style.pointerEvents = 'none'; // 设置当前页面无法点击
+            let source_data = d3.csvParseRows(data.replace(/\t/g, ','))
+            console.log("source_data", source_data);
+            let data_obj = new DataObj(source_data, 4)
+            data_arr.push(data_obj)
+            current_data_id = data_arr.length - 1
+        })
+        .catch(error => {
+            console.error('读取文件时出错:', error);
+        });
+</script>
+
+</html>

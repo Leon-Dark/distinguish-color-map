@@ -1,0 +1,838 @@
+/* ============================================
+   CSS Variables - Modern Color Palette
+   ============================================ */
+:root {
+    --primary-color: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-light: #818cf8;
+    --secondary-color: #8b5cf6;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f1f5f9;
+    
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-light: #94a3b8;
+    
+    --border-color: #e2e8f0;
+    --border-light: #f1f5f9;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.3s ease;
+    --transition-slow: 0.5s ease;
+}
+
+/* ============================================
+   Global Reset & Base Styles
+   ============================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+/* ============================================
+   Main Container
+   ============================================ */
+.mainDiv {
+    max-width: 98%;
+    margin: 0 auto;
+    background: var(--bg-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+    height: calc(100vh - 160px);
+    overflow: hidden;
+}
+
+/* ============================================
+   Panel Base Styles
+   ============================================ */
+.leftDiv, .middleDiv, .rightDiv {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    border: 1px solid var(--border-light);
+    transition: box-shadow var(--transition-base);
+    height: 100%;
+    overflow: hidden;
+}
+
+.leftDiv:hover, .middleDiv:hover, .rightDiv:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+.leftDiv {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.leftDiv > .buttonDiv {
+    flex-shrink: 0;
+}
+
+.leftDiv > .renderDiv {
+    flex: 1;
+}
+
+.middleDiv {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.middleDiv > .colormapDiv {
+    flex-shrink: 0;
+}
+
+.middleDiv > .controlDiv {
+    flex: 1;
+}
+
+.rightDiv {
+    display: flex;
+    flex-direction: column;
+}
+
+.rightDiv > h3 {
+    flex-shrink: 0;
+}
+
+.rightDiv > hr {
+    flex-shrink: 0;
+    margin: 0 0 10px 0;
+}
+
+/* ============================================
+   Section Headings
+   ============================================ */
+h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    padding-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+h3::before {
+    content: '';
+    width: 4px;
+    height: 24px;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border-radius: 2px;
+}
+
+hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 5px 0 10px 0;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+button {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left var(--transition-base);
+}
+
+button:hover::before {
+    left: 100%;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+button:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ============================================
+   Select Dropdowns
+   ============================================ */
+select {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    padding: 8px 35px 8px 12px;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+
+select:hover {
+    border-color: var(--primary-light);
+}
+
+select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* ============================================
+   Panel Sections
+   ============================================ */
+.buttonDiv, .renderDiv, .colormapDiv, .controlDiv, .historyDiv {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: 12px;
+}
+
+.buttonDiv {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.renderDiv {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.colormapDiv {
+    flex: 0 0 auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 120px;
+    max-height: 180px;
+}
+
+.controlDiv {
+    height: 49%;
+    padding: 15px;
+    margin-bottom: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.canvasDiv {
+    flex: 1;
+    overflow-y: auto;
+    background: white;
+    border-radius: var(--radius-sm);
+    padding: 15px;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* ============================================
+   Control Row Layout
+   ============================================ */
+.buttonDiv > * {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.buttonDiv button,
+.buttonDiv select {
+    flex-shrink: 0;
+}
+
+.buttonDiv span {
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    border: 1px solid var(--border-color);
+}
+
+#statusId {
+    color: var(--primary-color);
+    font-weight: 500;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+#scoreId {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+/* ============================================
+   Toggle Switch
+   ============================================ */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 54px;
+    height: 28px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #cbd5e1;
+    border-radius: 34px;
+    transition: var(--transition-base);
+}
+
+.slider::before {
+    content: "";
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: var(--transition-base);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input:checked + .slider {
+    background: linear-gradient(135deg, var(--success-color), #059669);
+}
+
+input:checked + .slider::before {
+    transform: translateX(26px);
+}
+
+.slider:hover {
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+}
+
+/* ============================================
+   Icons
+   ============================================ */
+.icon_trash {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    background-image: url('/static/img/trash.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all var(--transition-base);
+}
+
+.icon_trash:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* ============================================
+   Canvas
+   ============================================ */
+canvas {
+    display: block;
+    border-radius: var(--radius-sm);
+    transition: transform var(--transition-base);
+}
+
+canvas:hover {
+    transform: scale(1.01);
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* ============================================
+   Description Section
+   ============================================ */
+.description-section {
+    max-width: 1400px;
+    margin: 30px auto 0;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-light);
+}
+
+.description-section h3 {
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.description-section ul {
+    list-style: none;
+    padding-left: 0;
+    display: grid;
+    gap: 15px;
+}
+
+.description-section ul li {
+    padding: 15px 15px 15px 50px;
+    position: relative;
+    color: var(--text-secondary);
+    line-height: 1.8;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-base);
+    border-left: 3px solid transparent;
+}
+
+.description-section ul li:hover {
+    background: var(--bg-primary);
+    border-left-color: var(--primary-color);
+    transform: translateX(5px);
+}
+
+.description-section ul li strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media (max-width: 1400px) {
+    .mainDiv {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .mainDiv {
+        padding: 15px;
+        gap: 15px;
+    }
+    
+    .buttonDiv button,
+    .buttonDiv select {
+        width: 100%;
+    }
+}
+
+/* ============================================
+   Loading & Animation Effects
+   ============================================ */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.mainDiv > div {
+    animation: fadeIn 0.6s ease forwards;
+}
+
+.leftDiv {
+    animation-delay: 0.1s;
+}
+
+.middleDiv {
+    animation-delay: 0.2s;
+}
+
+.rightDiv {
+    animation-delay: 0.3s;
+}
+
+/* ============================================
+   Status Display Enhancement
+   ============================================ */
+.buttonDiv > div[style*="display: none"] {
+    transition: all var(--transition-base);
+}
+
+.buttonDiv > div[style*="display: block"] {
+    display: flex !important;
+    animation: fadeIn 0.3s ease;
+}
+
+/* ============================================
+   Label Styling
+   ============================================ */
+label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* ============================================
+   Enhanced History Panel
+   ============================================ */
+.historyDiv {
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0; /* 关键：允许flex子项收缩 */
+}
+
+.historyDiv canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.historyDiv > * {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--primary-color);
+    transition: all var(--transition-base);
+}
+
+.historyDiv > *:hover {
+    background: var(--bg-primary);
+    transform: translateX(5px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.05);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.3);
+}
+
+/* ============================================
+   Empty States
+   ============================================ */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 40px;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0,0,0,0.02) 10px,
+        rgba(0,0,0,0.02) 20px
+    );
+    border-radius: var(--radius-md);
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+.tab-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
+}
+
+.tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.footer-text {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.9rem;
+    margin-top: 20px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ============================================
+   Responsive Tweaks
+   ============================================ */
+@media (max-width: 1200px) {
+    .mainDiv {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+    
+    .leftDiv, .middleDiv, .rightDiv {
+        height: auto;
+        min-height: 400px;
+    }
+}
+
+/* ============================================
+   Tooltip Effect (for future use)
+   ============================================ */
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 8px 12px;
+    background: var(--text-primary);
+    color: white;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-base);
+    z-index: 1000;
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 200px;
+    text-align: center;
+}
+
+.empty-state p {
+    margin-top: 10px;
+    color: var(--text-light);
+    font-size: 0.875rem;
+}
+
+/* ============================================
+   History Panel Items
+   ============================================ */
+.historyDiv > div {
+    position: relative;
+    overflow: hidden;
+}
+
+.historyDiv > div::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    pointer-events: none;
+}
+
+.historyDiv > div:hover::after {
+    transform: translateX(100%);
+}
+
+/* ============================================
+   Button Group Enhancement
+   ============================================ */
+.buttonDiv > div {
+    position: relative;
+}
+
+.buttonDiv button:not(:disabled):active {
+    transform: scale(0.98);
+}
+
+/* ============================================
+   Status Badge
+   ============================================ */
+#statusId, #scoreId {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#statusId::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+}
+
+/* ============================================
+   Control Panel Enhancement
+   ============================================ */
+.controlDiv {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ============================================
+   Panel Loading State
+   ============================================ */
+.panel-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.panel-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
