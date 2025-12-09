@@ -271,37 +271,6 @@ function vecLength(v) {
     return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-function calcSmoothness(palette) {
-    if (palette.length < 3) return 0;
-
-    let cosinePenalty = 0;
-    for (let i = 0; i < palette.length - 2; i++) {
-        let c1 = palette[i];
-        let c2 = palette[i + 1];
-        let c3 = palette[i + 2];
-
-        // d1: c1 -> c2
-        let d1 = delta(c1, c2);
-        // d2: c2 -> c3
-        let d2 = delta(c2, c3);
-
-        let len1 = vecLength(d1);
-        let len2 = vecLength(d2);
-
-        // If points are too close, ignore direction penalty (handled by contrast metric)
-        if (len1 < 1e-5 || len2 < 1e-5) {
-            continue;
-        }
-
-        let cosine = dot(d1, d2) / (len1 * len2);
-
-        // Transform cosine to penalty [0, 1]
-        // cosine = 1 (straight) -> penalty = 0
-        // cosine = -1 (sharp turn) -> penalty = 1
-        cosinePenalty += (1 - cosine) / 2;
-    }
-    return cosinePenalty / (palette.length - 2);
-}
 // ---------------------------------
 
 function resampleControlColors(palette) {
@@ -344,13 +313,69 @@ function getPaletteScore(palette) {
     }
     average_contrast_sen /= (palette.length * (palette.length - 1) / 2)
 
-    // smoothness penalty (range [0, 1], smaller is better)
-    let smoothness_penalty = calcSmoothness(palette_lab)
+    // Smoothness: Calculate minimum color difference of 256 resampled points
+    let min_color_diff = 0;
+    try {
+        let numSamples = 256;
+        let samples = [];
+        
+        for (let k = 0; k < numSamples; k++) {
+            let t_total = k / (numSamples - 1); 
+            
+            // Find segment index
+            let segmentIndex = Math.floor(t_total * (palette.length - 1));
+            if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
+            
+            let segmentLength = 1 / (palette.length - 1);
+            let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+            
+            let c1 = palette[segmentIndex]; // [h, c, l]
+            let c2 = palette[segmentIndex + 1];
+            
+            let h1 = c1[0], h2 = c2[0];
+            let diff = h2 - h1;
+            // Shortest path interpolation for hue
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            
+            let h = (h1 + diff * t + 360) % 360;
+            let c = c1[1] + (c2[1] - c1[1]) * t;
+            let l = c1[2] + (c2[2] - c1[2]) * t;
+            
+            // Convert to Lab
+            samples.push(d3.lab(d3.hcl(h, c, l)));
+        }
+        
+        let minDeltaE = Number.MAX_VALUE;
+        for (let k = 0; k < samples.length - 1; k++) {
+            // Calculate color difference using d3_ciede2000
+            let deltaE;
+            if (typeof d3_ciede2000 === 'function') {
+                deltaE = d3_ciede2000(samples[k], samples[k+1]);
+            } else {
+                // Fallback to Euclidean
+                let dL = samples[k].l - samples[k+1].l;
+                let da = samples[k].a - samples[k+1].a;
+                let db = samples[k].b - samples[k+1].b;
+                deltaE = Math.sqrt(dL*dL + da*da + db*db);
+            }
+            
+            if (deltaE < minDeltaE) {
+                minDeltaE = deltaE;
+            }
+        }
+        min_color_diff = minDeltaE;
+    } catch (e) {
+        console.warn("Error in smoothness calculation:", e);
+    }
+
     // weight for smoothness
     let weight_smooth = 0.2
 
-    // Total Score = (Contrast) + (Name Diff) - (Smoothness Penalty)
-    let total_score = 0.003 * average_contrast_sen + min_name_diff - weight_smooth * smoothness_penalty
+    // Total Score = (Contrast) + (Name Diff) + (Smoothness Reward)
+    // We want to MAXIMIZE the minimum color difference (to ensure uniformity/smoothness)
+   // let total_score = 0.003 * average_contrast_sen + min_name_diff + weight_smooth * min_color_diff
+    let total_score =  min_color_diff
     
     return total_score
 }

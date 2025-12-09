@@ -109,11 +109,14 @@ class DataObj {
             step_num = Math.max(step_num, 1)
             for (let j = 0; j < step_num; j++) {
                 let hcl = [0, 0, 0]
-                // 使用与 getColormapArray 一致的 Hue 插值逻辑
-                if (sourceControlColors[i + 1][0] < sourceControlColors[i][0])
-                    hcl[0] = (sourceControlColors[i][0] + (sourceControlColors[i + 1][0] - sourceControlColors[i][0]) * j / step_num) % 360
-                else
-                    hcl[0] = (sourceControlColors[i][0] + (sourceControlColors[i + 1][0] - sourceControlColors[i][0] - 360) * j / step_num + 360) % 360
+                // 使用与 getColormapArray 一致的 Hue 插值逻辑（最短路径）
+                let h1 = sourceControlColors[i][0];
+                let h2 = sourceControlColors[i + 1][0];
+                let diff = h2 - h1;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                
+                hcl[0] = (h1 + diff * (j / step_num) + 360) % 360;
                 
                 hcl[1] = sourceControlColors[i][1] + (sourceControlColors[i + 1][1] - sourceControlColors[i][1]) * j / step_num
                 hcl[2] = sourceControlColors[i][2] + (sourceControlColors[i + 1][2] - sourceControlColors[i][2]) * j / step_num
@@ -140,10 +143,14 @@ class DataObj {
             for (let j = 0; j < step_num; j++) {
                 let hcl = [0, 0, 0]
 
-                if (this.controlColors[i + 1][0] < this.controlColors[i][0])
-                    hcl[0] = (this.controlColors[i][0] + (this.controlColors[i + 1][0] - this.controlColors[i][0]) * j / step_num) % 360
-                else
-                    hcl[0] = (this.controlColors[i][0] + (this.controlColors[i + 1][0] - this.controlColors[i][0] - 360) * j / step_num + 360) % 360
+                // 使用最短路径插值
+                let h1 = this.controlColors[i][0];
+                let h2 = this.controlColors[i + 1][0];
+                let diff = h2 - h1;
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                
+                hcl[0] = (h1 + diff * (j / step_num) + 360) % 360;
 
                 hcl[1] = this.controlColors[i][1] + (this.controlColors[i + 1][1] - this.controlColors[i][1]) * j / step_num
                 hcl[2] = this.controlColors[i][2] + (this.controlColors[i + 1][2] - this.controlColors[i][2]) * j / step_num

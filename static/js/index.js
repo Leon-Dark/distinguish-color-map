@@ -66,7 +66,24 @@ function selectExample(option) {
             let data_obj = new DataObj(source_data)
             data_arr.push(data_obj)
             current_data_id = data_arr.length - 1
-            // renderCanvas(data_obj)
+            
+            // 初始化 3D 视图
+            initRenderView();
+            d3.select(".canvasDiv .empty-state").style("display", "none");
+
+            renderCanvas(data_obj)
+            
+            // 初始化对比模块（使用延时以确保DataObj初始化完成）
+            setTimeout(() => {
+                // 锁定初始状态为 Optimized
+                if (data_obj.controlColors && typeof setFixedOptimizedColors === 'function') {
+                     setFixedOptimizedColors(data_obj.controlColors);
+                }
+
+                if (typeof updateFullComparison === 'function') {
+                    updateFullComparison(data_obj);
+                }
+            }, 500);
             // drawAllExamples()
         })
         .catch(error => {
@@ -111,20 +128,29 @@ function addToHistory() {
             data_arr[current_data_id].setControlColors(palette)
             
             // 3. 重绘所有面板
-            // 注意：drawControlPoints 在 drawOriginalColormap 内部被调用（或者代码合并了）
-            // 所以这里主要调用 drawOriginalColormap
             drawOriginalColormap(data_arr[current_data_id])
             drawColorWheel(data_arr[current_data_id])
             
             // 根据当前视图模式更新渲染
-            if (typeof renderViewMode !== 'undefined' && renderViewMode === '3d') {
-                renderLab3D(data_arr[current_data_id])
+            if (typeof renderViewMode !== 'undefined') {
+                if (renderViewMode === '3d') {
+                    renderLab3D(data_arr[current_data_id])
+                } else if (renderViewMode === 'compare') {
+                    renderComparisonGrid(data_arr[current_data_id])
+                } else {
+                    renderCanvas(data_arr[current_data_id])
+                }
             } else {
                 renderCanvas(data_arr[current_data_id])
             }
             
             // 4. 移除该历史条目
             d3.select(this).remove();
+            
+            // 5. 更新对比模块
+            if (typeof updateFullComparison === 'function') {
+                updateFullComparison(data_arr[current_data_id]);
+            }
         });
 
     // append delete sign
@@ -155,9 +181,14 @@ function generateColormap() {
     } else {
         renderCanvas(data_arr[current_data_id])
     }
+    
+    // 更新底部完整的对比模块
+    if (typeof updateFullComparison === 'function') {
+        updateFullComparison(data_arr[current_data_id]);
+    }
+
     // findBestPalette()
 }
-
 
 function downloadColormap(option) {
     let dataObj = data_arr[current_data_id]

@@ -1,3 +1,7 @@
+// 全局变量：控制 3D 视图的显示
+let showInitialTrajectory = false; // 控制是否显示优化前的轨迹（默认关闭）
+let currentComparisonColormap = 'none'; // 当前选择的对比colormap
+
 function renderCanvas(dataObj) {
     let data = dataObj.data, width = dataObj.width, height = dataObj.height
 
@@ -182,55 +186,88 @@ function updateCanvas() {
     
     context.putImageData(imageData, 0, 0);
     
-    // 如果当前处于 3D 模式，同步更新 3D 视图
-    if (renderViewMode === '3d') {
-        renderLab3D(dataObj);
+    // 主视图不再渲染 3D，只保留 2D Canvas
+    // renderLab3D(dataObj);
+    
+    // 实时更新底部的完整对比模块
+    if (typeof updateFullComparison === 'function') {
+        updateFullComparison(dataObj);
     }
 }
 
 // 视图模式状态
-let renderViewMode = '2d';
+let renderViewMode = '2d'; // 默认为 2D
 let lab3dYaw = 0.8;        // 调整初始角度，更好地展示 L 轴
 let lab3dPitch = 0.5;      // 调整俯视角度
 
+// 简化为初始化函数
+function initRenderView() {
+    // 确保 Canvas 可见
+    d3.select(".canvasDiv canvas").style("display", "block");
+    
+    // 移除主视图的 3D 容器（如果存在）
+    d3.select("#lab3d-container").remove();
+    
+    // 如果没有 canvas，可能需要确保它被创建（通常由 renderCanvas 自动创建）
+}
+
 function switchRenderView(mode) {
-    renderViewMode = mode;
-    
-    // Toggle active class
-    d3.selectAll(".tab-btn").classed("active", false);
-    d3.select("#btn-view-" + mode).classed("active", true);
-    
-    if (mode === '2d') {
-        d3.select(".canvasDiv canvas").style("display", "block");
-        // 恢复 empty-state 的显示状态（如果没有数据）
-        if (current_data_id === undefined) {
-            d3.select(".canvasDiv .empty-state").style("display", "flex");
-        } else {
-            d3.select(".canvasDiv .empty-state").style("display", "none");
-        }
-        d3.select("#lab3d-container").remove(); // 完全移除，避免干扰
-    } else {
-        d3.select(".canvasDiv canvas").style("display", "none");
-        d3.select(".canvasDiv .empty-state").remove(); // 完全移除而不是隐藏
-        
-        let container = d3.select("#lab3d-container");
-        if (container.empty()) {
-            container = d3.select(".canvasDiv").append("div")
-                .attr("id", "lab3d-container")
-                .attr("class", "lab-3d-container")
-                .style("width", "100%")
-                .style("height", "100%")
-                .style("display", "block");
-        }
-        
-        // 即使没有数据，也渲染坐标轴
-        let data = (current_data_id !== undefined && data_arr[current_data_id]) ? data_arr[current_data_id] : null;
-        renderLab3D(data);
+   // 已废弃
+   console.log("Switch view is deprecated, always 2D Map");
+   initRenderView();
+}
+
+// 切换初始轨迹显示
+function toggleInitialTrajectory(show) {
+    showInitialTrajectory = show;
+    if (current_data_id !== undefined && data_arr[current_data_id]) {
+        renderLab3D(data_arr[current_data_id]);
     }
 }
 
-function renderLab3D(dataObj) {
-    let container = d3.select("#lab3d-container");
+// 更新平滑度对比显示
+function updateSmoothnessComparison(dataObj) {
+    if (!dataObj || !dataObj.controlColors) {
+        d3.select("#smoothness-comparison").style("display", "none");
+        return;
+    }
+    
+    // 显示平滑度对比面板
+    d3.select("#smoothness-comparison").style("display", "block");
+    
+    // 如果有初始数据，显示对比
+    if (dataObj.initialControlColors) {
+        let smoothnessBefore = calcSmoothness(dataObj.initialControlColors);
+        let smoothnessAfter = calcSmoothness(dataObj.controlColors);
+        let improvement = ((smoothnessBefore - smoothnessAfter) / smoothnessBefore * 100);
+        
+        d3.select("#smoothness-before").text("优化前: " + smoothnessBefore.toFixed(4));
+        d3.select("#smoothness-after").text("当前: " + smoothnessAfter.toFixed(4));
+        
+        if (Math.abs(improvement) < 0.01) {
+            d3.select("#smoothness-improvement")
+                .text("(拖动控制点或点击Generate优化)")
+                .style("color", "#999");
+        } else if (improvement > 0) {
+            d3.select("#smoothness-improvement")
+                .text("↓ 改善 " + improvement.toFixed(1) + "%")
+                .style("color", "#4CAF50");
+        } else {
+            d3.select("#smoothness-improvement")
+                .text("↑ 恶化 " + Math.abs(improvement).toFixed(1) + "%")
+                .style("color", "#f44336");
+        }
+    } else {
+        // 如果没有初始数据，只显示当前平滑度
+        let smoothnessCurrent = calcSmoothness(dataObj.controlColors);
+        d3.select("#smoothness-before").text("");
+        d3.select("#smoothness-after").text("当前平滑度: " + smoothnessCurrent.toFixed(4));
+        d3.select("#smoothness-improvement").text("(点击Generate优化以查看改进)").style("color", "#999");
+    }
+}
+
+function renderLab3D(dataObj, containerSelector = "#lab3d-container", options = {}) {
+    let container = d3.select(containerSelector);
     if (container.empty()) return;
     
     // 强制获取父容器尺寸，确保非零
@@ -270,19 +307,34 @@ function renderLab3D(dataObj) {
     container.selectAll("*").remove();
     
     // 背景提示
-    container.style("background", "#f5f5f5").style("border", "1px solid #ddd");
+    if (!options.noBackground) {
+        container.style("background", "#f5f5f5").style("border", "1px solid #ddd");
+    }
     
     let svg = container.append("svg")
         .attr("width", width)
         .attr("height", height)
-        .style("background", "#fff")
+        .style("background", options.background || "#fff")
         .call(d3.drag().on("drag", function() {
             lab3dYaw -= d3.event.dx * 0.01;  // 反转水平旋转方向
             lab3dPitch += d3.event.dy * 0.01;
             // 限制 Pitch 角度防止翻转
             lab3dPitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, lab3dPitch));
-            renderLab3D(dataObj);
+            
+            // 触发全局重绘（如果是主视图，重绘所有；如果是子视图，也重绘所有以保持同步）
+            if (options.onRotate) {
+                options.onRotate();
+            } else {
+                renderLab3D(dataObj); // 默认行为
+                // 同时也更新对比视图
+                if (typeof updateFullComparison === 'function') {
+                    updateFullComparison(dataObj);
+                }
+            }
         }));
+    
+    // ... (后续代码保持不变，直到结束)
+
     
     // 检测数据质量
     let lowChroma = false;
@@ -361,9 +413,32 @@ function renderLab3D(dataObj) {
         });
     });
     
+    // 2.5 对比colormap轨迹（如果选择了）
+    if (currentComparisonColormap !== 'none' && typeof BUILTIN_COLORMAPS !== 'undefined') {
+        let comparisonMap = BUILTIN_COLORMAPS[currentComparisonColormap];
+        if (comparisonMap) {
+            let comparisonPoints = getColormapArrayLabFromHCL(comparisonMap.controlColors);
+            let step = Math.max(1, Math.floor(comparisonPoints.length / 200));
+            for (let i = 0; i < comparisonPoints.length - step; i += step) {
+                let p1 = project(comparisonPoints[i][0], comparisonPoints[i][1], comparisonPoints[i][2]);
+                let p2 = project(comparisonPoints[i + step][0], comparisonPoints[i + step][1], comparisonPoints[i + step][2]);
+                elements.push({ 
+                    type: 'line', 
+                    x1: p1[0], y1: p1[1], 
+                    x2: p2[0], y2: p2[1], 
+                    z: (p1[2] + p2[2]) / 2, 
+                    color: "#999", 
+                    width: 2, 
+                    dash: "3,3",
+                    opacity: 0.6
+                });
+            }
+        }
+    }
+    
     if (dataObj) {
-        // 3. 初始轨迹 (虚线)
-        if (dataObj.initialControlColors) {
+        // 3. 初始轨迹 (虚线) - 仅在开关启用时显示
+        if (showInitialTrajectory && dataObj.initialControlColors) {
             let initPoints = dataObj.getColormapArrayLab(dataObj.initialControlColors);
             // 降采样以提高性能
             let step = Math.max(1, Math.floor(initPoints.length / 200));
@@ -384,30 +459,43 @@ function renderLab3D(dataObj) {
         }
         
         // 4. 当前轨迹 (实线 + 真实颜色)
-        if (dataObj.colormap) {
-            let currentPoints = dataObj.getColormapArrayLab();
-            let colormapHCL = dataObj.colormap;
-            
-            // 降采样
-            let step = Math.max(1, Math.floor(currentPoints.length / 200));
-            for (let i = 0; i < currentPoints.length - step; i += step) {
-                // currentPoints[i] = [L, a, b] 数组，直接使用
-                let p1 = project(currentPoints[i][0], currentPoints[i][1], currentPoints[i][2]);
-                let p2 = project(currentPoints[i + step][0], currentPoints[i + step][1], currentPoints[i + step][2]);
-                
-                // 使用实际颜色
-                let color = "#333";
-                if (colormapHCL[i]) {
-                    color = d3.hcl(colormapHCL[i][0], colormapHCL[i][1], colormapHCL[i][2]).toString();
+        if (dataObj.colormap || dataObj.labPoints) {
+            let currentPoints;
+            let colormapHCL;
+
+            if (dataObj.getColormapArrayLab) {
+                currentPoints = dataObj.getColormapArrayLab();
+                colormapHCL = dataObj.colormap;
+            } else if (dataObj.labPoints) {
+                // 这是一个 mock DataObj
+                currentPoints = dataObj.labPoints;
+                colormapHCL = dataObj.hclPoints; // 如果有的话
+            }
+
+            if (currentPoints) {
+                // 降采样
+                let step = Math.max(1, Math.floor(currentPoints.length / 200));
+                for (let i = 0; i < currentPoints.length - step; i += step) {
+                    // currentPoints[i] = [L, a, b] 数组，直接使用
+                    let p1 = project(currentPoints[i][0], currentPoints[i][1], currentPoints[i][2]);
+                    let p2 = project(currentPoints[i + step][0], currentPoints[i + step][1], currentPoints[i + step][2]);
+                    
+                    // 使用实际颜色
+                    let color = "#333";
+                    if (!options.disableRealColor && colormapHCL && colormapHCL[i]) {
+                        let hcl = colormapHCL[i];
+                        color = d3.hcl(hcl[0], hcl[1], hcl[2]).toString();
+                    }
+                    
+                    elements.push({ 
+                        type: 'line', 
+                        x1: p1[0], y1: p1[1], 
+                        x2: p2[0], y2: p2[1], 
+                        z: (p1[2] + p2[2]) / 2, 
+                        color: color, 
+                        width: options.lineWidth || 2.5
+                    });
                 }
-                elements.push({ 
-                    type: 'line', 
-                    x1: p1[0], y1: p1[1], 
-                    x2: p2[0], y2: p2[1], 
-                    z: (p1[2] + p2[2]) / 2, 
-                    color: color, 
-                    width: 2.5 
-                });
             }
         }
         
@@ -1421,5 +1509,294 @@ function drawHistogramWithMultipleGaussians(dataArray, gaussianParamsArray) {
     });
 }
 
+/**
+ * 从HCL控制点生成Lab数组（用于对比colormap）
+ */
+function getColormapArrayLabFromHCL(controlColors) {
+    let colormap = [];
+    // 使用足够多的点来保证平滑
+    let totalSteps = 200; 
+    let stepPerSegment = Math.floor(totalSteps / (controlColors.length - 1));
+    
+    let hclPoints = [];
+
+    for (let i = 0; i < controlColors.length - 1; i++) {
+        for (let j = 0; j < stepPerSegment; j++) {
+            let t = j / stepPerSegment;
+            let hcl = [0, 0, 0];
+            
+            // 色相插值（最短路径原则）
+            let h1 = controlColors[i][0];
+            let h2 = controlColors[i + 1][0];
+            let diff = h2 - h1;
+            
+            // 如果差值超过180度，说明跨越了0度边界，走另一条路更近
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            
+            hcl[0] = (h1 + diff * t + 360) % 360;
+            
+            hcl[1] = controlColors[i][1] + (controlColors[i + 1][1] - controlColors[i][1]) * t;
+            hcl[2] = controlColors[i][2] + (controlColors[i + 1][2] - controlColors[i][2]) * t;
+            
+            hclPoints.push(hcl);
+
+            let lab = d3.lab(d3.hcl(hcl[0], hcl[1], hcl[2]));
+            colormap.push([lab.L, lab.a, lab.b]);
+        }
+    }
+    
+    // 添加最后一个点
+    let lastHCL = controlColors[controlColors.length - 1];
+    hclPoints.push(lastHCL);
+    let lastLab = d3.lab(d3.hcl(lastHCL[0], lastHCL[1], lastHCL[2]));
+    colormap.push([lastLab.L, lastLab.a, lastLab.b]);
+    
+    return { labPoints: colormap, hclPoints: hclPoints };
+}
+
+/**
+ * 更新对比colormap选择 (保留但暂不使用)
+ */
+function updateComparisonColormap(value) {
+    currentComparisonColormap = value;
+    // 重新渲染3D视图
+    if (current_data_id !== undefined && data_arr[current_data_id]) {
+        renderLab3D(data_arr[current_data_id]);
+    }
+}
 
 
+/**
+ * 更新完整的对比模块（6个视图 + 指标）
+ */
+function updateFullComparison(optimizedData) {
+    // 检查是否存在对比模块容器
+    if (d3.select("#full-comparison-module").empty()) return;
+
+    // 1. 渲染优化后的 Colormap (Slot 1) - 始终显示当前状态
+    // 这里 optimizedData 其实就是 dataObj，即当前正在编辑的数据
+    renderLab3D(optimizedData, "#comp-lab3d-optimized", { 
+        background: "#fdfaff", // 淡淡的紫色背景
+        noBackground: true,
+        onRotate: () => updateFullComparison(optimizedData) // 旋转回调
+    });
+    
+    // 计算并显示优化后的指标
+    if (optimizedData.colormap && optimizedData.controlColors) {
+        let optMetrics = calculateMetrics(optimizedData.colormap, optimizedData.controlColors);
+        updateMetricPanel("optimized", optMetrics);
+    }
+    
+    // Slot 1 不需要点击事件来 "Restore"，因为它本身就是 Current
+    // 如果需要 Restore 功能，应该另设按钮
+
+    // 2. 渲染其他内置 Colormap
+    const comparisons = [
+        { id: 'rainbow', name: 'Rainbow' },
+        { id: 'thermal', name: 'Thermal' },
+        { id: 'viridis', name: 'Viridis' },
+        { id: 'jet', name: 'Jet' },
+        { id: 'plasma', name: 'Plasma' }
+    ];
+
+    comparisons.forEach(comp => {
+        if (typeof BUILTIN_COLORMAPS === 'undefined') return;
+        
+        let mapDef = BUILTIN_COLORMAPS[comp.id];
+        if (!mapDef) return;
+
+        // 构造 mock 数据对象
+        let mockData = getColormapArrayLabFromHCL(mapDef.controlColors);
+        mockData.controlColors = mapDef.controlColors;
+        
+        // 渲染
+        renderLab3D(mockData, "#comp-lab3d-" + comp.id, {
+            background: "#fff",
+            noBackground: true,
+            disableRealColor: false, // 显示真实颜色
+            onRotate: () => updateFullComparison(optimizedData) // 保持同步旋转
+        });
+
+        // 计算指标
+        let metrics = calculateMetrics(mockData.hclPoints, mapDef.controlColors);
+        updateMetricPanel(comp.id, metrics);
+
+        // 添加点击交互：应用该 Colormap
+        let container = d3.select("#comp-lab3d-" + comp.id);
+        let card = d3.select(container.node().closest('.colormap-card'));
+        
+        card.style("cursor", "pointer")
+            .attr("title", "Click to apply this colormap")
+            .on("click", function() {
+                applyBuiltinColormap(comp.id);
+                // 视觉反馈
+                d3.selectAll(".colormap-card").style("border-color", "#ddd");
+                d3.select(this).style("border-color", "#2196F3");
+            });
+    });
+}
+
+/**
+ * Switch the main application colormap to the selected one
+ * @param {string} name - The name of the colormap ('optimized' or builtin name)
+ */
+window.switchMainColormap = function(name) {
+    if (typeof current_data_id === 'undefined' || typeof data_arr === 'undefined' || !data_arr[current_data_id]) return;
+
+    let newControlColors = null;
+    if (name === 'optimized') {
+        if (typeof optimizedColormap !== 'undefined' && optimizedColormap) {
+            newControlColors = optimizedColormap;
+        } else if (data_arr[current_data_id].controlColors) {
+             // Fallback: keep current if already optimized or use object's property
+             // Assuming current is optimized if we are clicking 'optimized'
+             // But actually we want to revert to the *calculated* optimized colormap.
+             // If optimizedColormap global is not set, maybe we shouldn't switch.
+        }
+    } else if (typeof BUILTIN_COLORMAPS !== 'undefined' && BUILTIN_COLORMAPS[name]) {
+        newControlColors = BUILTIN_COLORMAPS[name].controlColors;
+    }
+
+    if (newControlColors) {
+        console.log("Switching to colormap:", name);
+        
+        // Deep copy
+        let clonedColors = newControlColors.map(c => c.slice());
+        
+        // Update data object
+        if (data_arr[current_data_id].setControlColors) {
+            data_arr[current_data_id].setControlColors(clonedColors);
+        } else {
+            data_arr[current_data_id].controlColors = clonedColors;
+            if (data_arr[current_data_id].getColormapArray) {
+                data_arr[current_data_id].colormap = data_arr[current_data_id].getColormapArray();
+            }
+        }
+
+        // Redraw
+        if (typeof renderCanvas === 'function') renderCanvas(data_arr[current_data_id]);
+        if (typeof renderLab3D === 'function') {
+             if (!d3.select("#lab3d-container").empty()) {
+                 renderLab3D(data_arr[current_data_id]);
+             }
+        }
+        if (typeof drawColormap === 'function') drawColormap(data_arr[current_data_id]);
+    }
+}
+
+/**
+ * 应用内置 Colormap 到当前数据
+ */
+function applyBuiltinColormap(name) {
+    if (typeof window.switchMainColormap === 'function') {
+        window.switchMainColormap(name);
+    } else {
+        console.warn("switchMainColormap not found in global scope");
+    }
+}
+
+// 计算各项指标的辅助函数
+function calculateMetrics(colormapHCL, controlColors) {
+    // 默认返回值
+    let defaultMetrics = { smoothness: 0, contrast: 0, discrimination: 0, score: 0 };
+    if (!colormapHCL || !Array.isArray(colormapHCL) || colormapHCL.length === 0) {
+        return defaultMetrics;
+    }
+
+    // 1. Smoothness: 计算 256 个重采样点之间最小的 Lab 色差
+    let smoothness = 0;
+    if (controlColors && controlColors.length > 1) {
+        try {
+            let samples = [];
+            let numSamples = 256;
+            
+            for (let k = 0; k < numSamples; k++) {
+                let t_total = k / (numSamples - 1); // 0 to 1
+                
+                // 找到所在的段
+                let segmentIndex = Math.floor(t_total * (controlColors.length - 1));
+                if (segmentIndex >= controlColors.length - 1) segmentIndex = controlColors.length - 2;
+                
+                // 段内局部 t
+                let segmentLength = 1 / (controlColors.length - 1);
+                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
+                
+                // 插值
+                let c1 = controlColors[segmentIndex];
+                let c2 = controlColors[segmentIndex + 1];
+                
+                let h1 = c1[0];
+                let h2 = c2[0];
+                let diff = h2 - h1;
+                // 最短路径 Hue 插值
+                if (diff > 180) diff -= 360;
+                if (diff < -180) diff += 360;
+                
+                let h = (h1 + diff * t + 360) % 360;
+                let c = c1[1] + (c2[1] - c1[1]) * t;
+                let l = c1[2] + (c2[2] - c1[2]) * t;
+                
+                let lab = d3.lab(d3.hcl(h, c, l));
+                samples.push(lab);
+            }
+            
+            // 计算相邻 Lab 距离的最小值
+            let minDeltaE = Infinity;
+            for (let k = 0; k < samples.length - 1; k++) {
+                let deltaE;
+                // 使用项目定义的 d3_ciede2000 计算色差 (如果可用)
+                if (typeof d3_ciede2000 === 'function') {
+                    deltaE = d3_ciede2000(samples[k], samples[k+1]);
+                } else {
+                    // Fallback to Euclidean
+                    let dL = samples[k].l - samples[k+1].l;
+                    let da = samples[k].a - samples[k+1].a;
+                    let db = samples[k].b - samples[k+1].b;
+                    deltaE = Math.sqrt(dL*dL + da*da + db*db);
+                }
+                
+                if (deltaE < minDeltaE) {
+                    minDeltaE = deltaE;
+                }
+            }
+            smoothness = minDeltaE;
+            
+        } catch (e) {
+            console.warn("Smoothness calculation failed:", e);
+        }
+    } else {
+        // Fallback if no controlColors: use provided HCL points
+        // ... (Optional fallback)
+    }
+
+    // 简单模拟其他指标（如果没有现有函数）
+    // 对比度: L 的范围
+    let contrast = 0;
+    try {
+        let l_values = colormapHCL.map(c => d3.lab(d3.hcl(c[0], c[1], c[2])).L);
+        contrast = Math.max(...l_values) - Math.min(...l_values);
+    } catch(e) {}
+    
+    // 区分度: 基于 Lab 距离的总和
+    let discrimination = 0;
+    // ...
+
+    // 综合评分 (模拟公式)
+    let score = (contrast * 0.5) + (100 - smoothness * 500); 
+    if (score < 0) score = 0;
+    if (score > 100) score = 95;
+
+    return {
+        smoothness: smoothness,
+        contrast: contrast,
+        discrimination: discrimination, // 暂略
+        score: score
+    };
+}
+
+function updateMetricPanel(id, metrics) {
+    d3.select(`#smoothness-${id}`).text(metrics.smoothness.toFixed(4));
+    // 可以根据 ID 填充其他指标
+    d3.select(`#score-${id}`).text(metrics.score.toFixed(0));
+}

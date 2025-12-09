@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colormap 对比分析 - Lab 3D 空间可视化</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=20241204">
+    <link rel="stylesheet" href="/static/css/comparison.css?v=20241204">
+</head>
+<body>
+    <div class="comparison-container">
+        <!-- 头部 -->
+        <header class="comparison-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>🎨 Colormap 对比分析</h1>
+                    <p style="color: var(--text-secondary); margin-top: 5px;">
+                        在 Lab 3D 空间中对比优化算法与传统配色方案
+                    </p>
+                </div>
+                <div>
+                    <a href="/" class="btn-back">← 返回主页</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- 控制面板 -->
+        <div class="comparison-controls">
+            <div class="control-group">
+                <label>📊 数据集:</label>
+                <select id="dataset-select" onchange="loadComparisonDataset(this.value)">
+                    <option value="0">D15 数据</option>
+                    <option value="1">医学影像 CT</option>
+                    <option value="2">NYC 出租车数据</option>
+                    <option value="3">恒星图数据</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <button id="sync-rotation-btn" onclick="toggleSyncRotation()" class="btn-toggle">
+                    <span id="sync-icon">🔗</span> 同步旋转
+                </button>
+            </div>
+        </div>
+
+        <!-- Colormap 对比网格 -->
+        <div class="colormap-grid">
+            <!-- 优化后的 -->
+            <div class="colormap-card highlight">
+                <div class="card-header">
+                    <h3>✨ 优化后</h3>
+                    <span class="badge best">我们的算法</span>
+                </div>
+                <div class="lab3d-container" id="lab3d-optimized"></div>
+                <div class="metrics-panel">
+                    <div class="metric-item">
+                        <span class="metric-label">平滑度</span>
+                        <span class="metric-value" id="smooth-optimized">--</span>
+                        <span class="metric-badge best">↓</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均对比度</span>
+                        <span class="metric-value" id="contrast-optimized">--</span>
+                        <span class="metric-badge best">↑</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">颜色区分度</span>
+                        <span class="metric-value" id="namediff-optimized">--</span>
+                        <span class="metric-badge best">↑</span>
+                    </div>
+                    <div class="metric-item total">
+                        <span class="metric-label">综合评分</span>
+                        <span class="metric-value" id="score-optimized">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rainbow -->
+            <div class="colormap-card">
+                <div class="card-header">
+                    <h3>🌈 Rainbow</h3>
+                    <span class="badge">传统配色</span>
+                </div>
+                <div class="lab3d-container" id="lab3d-rainbow"></div>
+                <div class="metrics-panel">
+                    <div class="metric-item">
+                        <span class="metric-label">平滑度</span>
+                        <span class="metric-value" id="smooth-rainbow">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均对比度</span>
+                        <span class="metric-value" id="contrast-rainbow">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">颜色区分度</span>
+                        <span class="metric-value" id="namediff-rainbow">--</span>
+                    </div>
+                    <div class="metric-item total">
+                        <span class="metric-label">综合评分</span>
+                        <span class="metric-value" id="score-rainbow">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thermal -->
+            <div class="colormap-card">
+                <div class="card-header">
+                    <h3>🔥 Thermal</h3>
+                    <span class="badge">传统配色</span>
+                </div>
+                <div class="lab3d-container" id="lab3d-thermal"></div>
+                <div class="metrics-panel">
+                    <div class="metric-item">
+                        <span class="metric-label">平滑度</span>
+                        <span class="metric-value" id="smooth-thermal">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均对比度</span>
+                        <span class="metric-value" id="contrast-thermal">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">颜色区分度</span>
+                        <span class="metric-value" id="namediff-thermal">--</span>
+                    </div>
+                    <div class="metric-item total">
+                        <span class="metric-label">综合评分</span>
+                        <span class="metric-value" id="score-thermal">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Viridis -->
+            <div class="colormap-card">
+                <div class="card-header">
+                    <h3>🟣 Viridis</h3>
+                    <span class="badge">感知均匀</span>
+                </div>
+                <div class="lab3d-container" id="lab3d-viridis"></div>
+                <div class="metrics-panel">
+                    <div class="metric-item">
+                        <span class="metric-label">平滑度</span>
+                        <span class="metric-value" id="smooth-viridis">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均对比度</span>
+                        <span class="metric-value" id="contrast-viridis">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">颜色区分度</span>
+                        <span class="metric-value" id="namediff-viridis">--</span>
+                    </div>
+                    <div class="metric-item total">
+                        <span class="metric-label">综合评分</span>
+                        <span class="metric-value" id="score-viridis">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jet -->
+            <div class="colormap-card warning">
+                <div class="card-header">
+                    <h3>⚠️ Jet</h3>
+                    <span class="badge warning">不推荐</span>
+                </div>
+                <div class="lab3d-container" id="lab3d-jet"></div>
+                <div class="metrics-panel">
+                    <div class="metric-item">
+                        <span class="metric-label">平滑度</span>
+                        <span class="metric-value" id="smooth-jet">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均对比度</span>
+                        <span class="metric-value" id="contrast-jet">--</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">颜色区分度</span>
+                        <span class="metric-value" id="namediff-jet">--</span>
+                    </div>
+                    <div class="metric-item total">
+                        <span class="metric-label">综合评分</span>
+                        <span class="metric-value" id="score-jet">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 说明 -->
+        <div class="explanation-panel">
+            <h3>📖 指标说明</h3>
+            <ul>
+                <li><strong>平滑度 ↓</strong>: 测量 Lab 空间中颜色轨迹的曲率，数值越小越平滑（更好）</li>
+                <li><strong>平均对比度 ↑</strong>: 衡量不同区域的可区分性，数值越大越容易区分（更好）</li>
+                <li><strong>颜色区分度 ↑</strong>: 基于颜色命名的语义差异，数值越大语义区分越明显（更好）</li>
+                <li><strong>综合评分</strong>: 综合以上三项指标的加权得分，数值越大越优秀</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="/static/js/lib/d3.v4.min.js"></script>
+    <script type="text/javascript" src="/static/js/lib/c3.min.js"></script>
+    <script type="text/javascript" src="/static/js/lib/d3.color.min.js"></script>
+    <script src="/static/js/builtinColormaps.js"></script>
+    <script src="/static/js/metrics.js"></script>
+    <script src="/static/js/comparison.js"></script>
+</body>
+</html>
