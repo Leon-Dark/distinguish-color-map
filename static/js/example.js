@@ -26,7 +26,7 @@ function drawAllExamples() {
  */
 function drawExample(example, div) {
     // load the colormap
-    fetch("/static/data/colormap/" + example + ".txt")
+    fetch("static/data/colormap/" + example + ".txt")
         .then(response => {
             if (!response.ok) {
                 throw new Error('网络响应失败');
@@ -139,7 +139,7 @@ function renderExampleColormap(example, colormap, div) {
 
 function drawOMCExample(example, div) {
     // load the colormap
-    fetch("/static/data/colormap/omc.csv")
+    fetch("static/data/colormap/omc.csv")
         .then(response => {
             if (!response.ok) {
                 throw new Error('网络响应失败');
@@ -490,7 +490,7 @@ function drawZellerColormap(div) {
         }
         standardHistogramEqualization(div, example, colormap);
     };
-    image.src = "/static/data/colormap/" + example + ".png";
+    image.src = "static/data/colormap/" + example + ".png";
 }
 
 function getRGB2LabExtent() {

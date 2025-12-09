@@ -1606,7 +1606,7 @@ function loadLineups() {
     for (var i = 0; i < lineup_number_global; i++) {
         promises.push(
             // 使用fetch API加载文件
-            fetch("/static/data/lineupdata/" + i + ".txt")
+            fetch("static/data/lineupdata/" + i + ".txt")
                 .then(response => {
                     // 检查响应是否成功
                     if (!response.ok) {
@@ -1653,7 +1653,7 @@ function loadLineups() {
 }
 function loadRealData() {
     lineup_datas = []
-    fetch("/static/data/D15.txt")
+    fetch("static/data/D15.txt")
         .then(response => {
             if (!response.ok) {
                 throw new Error('网络响应失败');
@@ -2674,7 +2674,7 @@ function getThermalProfile() {
         return curve
     }
     // load the colormap
-    fetch("/static/data/colormap/TH_Thermal_6.txt")
+    fetch("static/data/colormap/TH_Thermal_6.txt")
         .then(response => {
             if (!response.ok) {
                 throw new Error('网络响应失败');

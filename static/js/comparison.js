@@ -26,13 +26,13 @@ document.addEventListener('DOMContentLoaded', function() {
 function loadComparisonDataset(datasetId) {
     let data_path = "";
     if (datasetId == 0) {
-        data_path = "/static/data/D15.txt";
+        data_path = "static/data/D15.txt";
     } else if (datasetId == 1) {
-        data_path = "/static/data/ID_0050_AGE_0074_CONTRAST_0_CT.txt";
+        data_path = "static/data/ID_0050_AGE_0074_CONTRAST_0_CT.txt";
     } else if (datasetId == 2) {
-        data_path = "/static/data/TLC trip.txt";
+        data_path = "static/data/TLC trip.txt";
     } else if (datasetId == 3) {
-        data_path = "/static/data/HR_diagram.txt";
+        data_path = "static/data/HR_diagram.txt";
     }
     
     // 显示加载状态

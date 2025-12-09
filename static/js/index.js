@@ -44,13 +44,13 @@ function selectExample(option) {
     document.body.style.pointerEvents = 'none'; // 设置当前页面无法点击
     let data_path = ""
     if (option.value == 0) {
-        data_path = "/static/data/D15.txt"
+        data_path = "static/data/D15.txt"
     } else if (option.value == 1) {
-        data_path = "/static/data/ID_0050_AGE_0074_CONTRAST_0_CT.txt"
+        data_path = "static/data/ID_0050_AGE_0074_CONTRAST_0_CT.txt"
     } else if (option.value == 2) {
-        data_path = "/static/data/TLC trip.txt"
+        data_path = "static/data/TLC trip.txt"
     } else if (option.value == 3) {
-        data_path = "/static/data/HR_diagram.txt"
+        data_path = "static/data/HR_diagram.txt"
     }
     fetch(data_path)
         .then(response => {

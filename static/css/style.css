@@ -392,7 +392,7 @@ input:checked + .slider::before {
     display: inline-block;
     width: 14px;
     height: 14px;
-    background-image: url('/static/img/trash.svg');
+    background-image: url('../img/trash.svg');
     background-size: contain;
     background-repeat: no-repeat;
     cursor: pointer;

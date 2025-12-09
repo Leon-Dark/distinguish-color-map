@@ -431,7 +431,7 @@ function normScope(v, vscope) {
     return normV;
 }
 
-c3.load("/static/js/lib/c3_data.json");
+c3.load("static/js/lib/c3_data.json");
 // color name lookup table
 let color_name_map = {};
 let name_range = [100000, -100000, 100000, -100000, 100000, -100000]
