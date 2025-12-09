@@ -44,15 +44,27 @@ function loadComparisonDataset(datasetId) {
             let source_data = d3.csvParseRows(data.replace(/\t/g, ','));
             comparisonData = source_data;
             
-            // 向后端请求优化后的colormap
-            return fetch('/calcGmm/' + datasetId, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ data: source_data })
+            // 使用纯前端 GMM 计算
+            // Simulate async behavior to not block UI immediately (though GMM is sync)
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    try {
+                        let result = window.GMM.calculate(source_data, 0); // 0 for auto
+                        resolve(result);
+                    } catch (e) {
+                        console.error("GMM Calculation failed:", e);
+                        resolve({ received_array: [], error: e });
+                    }
+                }, 10);
             });
         })
-        .then(response => response.json())
         .then(result => {
+            if (result.error || !result.received_array) {
+                console.error('GMM Error:', result.error);
+                hideLoading();
+                return;
+            }
+            
             // 保存优化后的控制点
             let control_colors = [];
             for (let i = 0; i < result.received_array.length; i++) {

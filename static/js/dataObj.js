@@ -18,59 +18,46 @@ class DataObj {
         this.controlPoints = this.extent
         this.controlColors = [[0, 0, 10], [0, 0, 90]]
 
-        // var url = "/calcGmm",
-        //     data = {
-        //         data: JSON.stringify(data)
-        //     };
-        // $.post(url, data, function (d) {
-        //     window.location.href = d;
-        // });
-        fetch('/calcGmm/' + num, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ data: data })
-        })
-            .then(response => response.json()) // 解析 JSON 响应
-            .then(data => {
-                d3.select("#statusId").style("display", "none")
-                document.body.style.pointerEvents = 'auto'; // 恢复页面点击
-                console.log(data);
-                this.controlPoints = data['received_array']
-                // this.controlPoints = [1.2786, 32.956163950670096, 33.189054280287735, 34.14079113688461, 34.669144017347115, 35.41237756621667, 36.26739419083998, 39.829]
-                // this.controlPoints = [1.2786, 30.838503269882978, 32.90590692296, 34.444300260344086, 35.38504796661167, 36.30432687062196, 39.829]
-                // console.log(this, this.controlPoints);
-                // regenerate control colors
-                let control_colors = []
-                for (let i = 0; i < this.controlPoints.length; i++) {
-                    // let v = 10 + 80 * i / (this.controlPoints.length - 1)
-                    control_colors.push([360 - i * 360 / this.controlPoints.length, 0, i % 2 == 0 ? 10 : 90])
-                }
-                // control_colors = [[345, 39.72143184582182, 16], [312, 57, 77], [302, 54.03600876626366, 10], [162, 69.83372960937498, 90], [137, 44.012666865176534, 23], [79, 65.25, 87], [33, 41.812033521917705, 29.848857801796104], [13, 85.7375, 55]]
-                // control_colors = [[340, 41.812033521917705, 25], [312, 57, 77], [300, 48.76749791155295, 10], [162, 69.83372960937498, 90], [139, 41.812033521917705, 23], [121, 100, 90], [56.77557352250712, 44.012666865176534, 28.349030329381918], [18.972487622738083, 77.37809374999999, 48]]
-                // control_colors = [[327, 44.012666865176534, 18], [267.57142857142856, 51.33420832795048, 60], [226.1428571428571, 17.482461472379697, 27.946161784905936], [157.71428571428578, 73.50918906249998, 90], [136.28571428571428, 44.012666865176534, 31.414213562373096], [100.85714285714289, 90.25, 90], [3.428571428571445, 39.72143184582182, 33]]
-                // control_colors = [[270, 23.782688525533217, 18], [221, 34.05616262881148, 60], [183, 22.593554099256554, 28], [136, 100, 90], [108, 37.73536025353073, 28], [94, 85.7375, 90], [33, 41.812033521917705, 15], [21, 88.25, 57], [314, 51.33420832795048, 10]]
-                // teaser[[270, 23.782688525533217, 18], [169, 63.02494097246091, 90], [145, 35.84859224085419, 23], [101, 90.25, 90], [34, 44.012666865176534, 16], [322, 100, 62]]
-                // [[270, 23.782688525533217, 18], [172, 59.87369392383786, 90], [145, 35.84859224085419, 23], [95, 85.7375, 90], [13, 39.72143184582182, 17], [321, 99, 63]]
-                // [[270, 23.782688525533217, 18], [169, 63.02494097246091, 90], [144, 35.84859224085419, 23], [112, 90.25, 90], [23, 41.812033521917705, 17], [13, 85.7375, 55]]
-                // [[270, 23.782688525533217, 18], [169, 63.02494097246091, 90], [145, 35.84859224085419, 23], [113, 95, 90], [34, 44.012666865176534, 16], [322, 100, 62]]
-                this.controlColors = control_colors
-                // 保存初始状态用于对比
-                this.initialControlColors = JSON.parse(JSON.stringify(control_colors))
+        // Use local pure frontend GMM calculation
+        setTimeout(() => {
+            try {
+                let result = window.GMM.calculate(data, num);
+                let responseData = result; // Match the structure
                 
-                this.colormap = this.getColormapArray()
+                d3.select("#statusId").style("display", "none");
+                document.body.style.pointerEvents = 'auto'; // 恢复页面点击
+                console.log(responseData);
+                this.controlPoints = responseData['received_array'];
+                
+                // regenerate control colors
+                let control_colors = [];
+                for (let i = 0; i < this.controlPoints.length; i++) {
+                    control_colors.push([360 - i * 360 / this.controlPoints.length, 0, i % 2 == 0 ? 10 : 90]);
+                }
+                
+                this.controlColors = control_colors;
+                // 保存初始状态用于对比
+                this.initialControlColors = JSON.parse(JSON.stringify(control_colors));
+                
+                this.colormap = this.getColormapArray();
                 console.log(this);
 
-                addToHistory()
-                drawColormap(this)
-                drawControlPoints(this)
-                drawColorWheel(this)
-                renderCanvas(this)
-                // drawAllExamples()
-                // drawHistogramWithMultipleGaussians(this.data, data['GMM'])
-            })
-            .catch(error => console.error('Error:', error));
+                addToHistory();
+                drawColormap(this);
+                drawControlPoints(this);
+                drawColorWheel(this);
+                renderCanvas(this);
+                
+                // Update comparison if available
+                if (typeof updateFullComparison === 'function') {
+                    updateFullComparison(this);
+                }
+            } catch (error) {
+                console.error('GMM Calculation Error:', error);
+                d3.select("#statusId").style("display", "none");
+                document.body.style.pointerEvents = 'auto';
+            }
+        }, 10);
 
     }
 
