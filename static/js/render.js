@@ -2,6 +2,37 @@
 let showInitialTrajectory = false; // 控制是否显示优化前的轨迹（默认关闭）
 let currentComparisonColormap = 'none'; // 当前选择的对比colormap
 
+const LAB_COLORBAR_HEIGHT = 12;
+const LAB_COLORBAR_MARGIN = 8;
+
+function drawLabColorbar(container, width, controlColors) {
+    if (!controlColors || !controlColors.length) return 0;
+    const totalHeight = LAB_COLORBAR_HEIGHT + LAB_COLORBAR_MARGIN;
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = container.append('canvas')
+        .attr('class', 'lab-colorbar')
+        .attr('width', Math.max(1, Math.round(width * dpr)))
+        .attr('height', Math.round(LAB_COLORBAR_HEIGHT * dpr))
+        .style('width', '100%')
+        .style('height', LAB_COLORBAR_HEIGHT + 'px')
+        .style('display', 'block')
+        .style('margin-bottom', LAB_COLORBAR_MARGIN + 'px');
+    const ctx = canvas.node().getContext('2d');
+    ctx.scale(dpr, dpr);
+    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+    const stops = controlColors.length === 1 ? [0, 1] : controlColors.map((_, idx) => idx / (controlColors.length - 1));
+    stops.forEach((t, idx) => {
+        const sourceIdx = controlColors.length === 1 ? 0 : idx;
+        const hcl = controlColors[sourceIdx];
+        const rgb = d3.hcl(hcl[0], hcl[1], hcl[2]).rgb();
+        gradient.addColorStop(t, `rgb(${rgb.r},${rgb.g},${rgb.b})`);
+    });
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, LAB_COLORBAR_HEIGHT);
+    return totalHeight;
+}
+window.drawLabColorbar = drawLabColorbar;
+
 function renderCanvas(dataObj) {
     let data = dataObj.data, width = dataObj.width, height = dataObj.height
 
@@ -270,43 +301,37 @@ function renderLab3D(dataObj, containerSelector = "#lab3d-container", options = 
     let container = d3.select(containerSelector);
     if (container.empty()) return;
     
-    // 强制获取父容器尺寸，确保非零
     let parentNode = container.node().parentNode;
     let width = parentNode ? parentNode.clientWidth : 500;
     let height = parentNode ? parentNode.clientHeight : 500;
-    
-    // 确保最小尺寸
     width = Math.max(width, 300);
     height = Math.max(height, 300);
     
-    // 调整缩放：Lab 空间 L:0-100, a/b:-100~100（实际可显示范围）
-    let scale = Math.min(width, height) / 250; // 增大缩放
+    container.selectAll("*").remove();
     
-    // 投影函数：将 (L, a, b) 转换为屏幕坐标 (x, y)
+    let colorbarHeight = 0;
+    if (options.showColorbar) {
+        let colorbarColors = options.colorbarColors || (dataObj && dataObj.controlColors) || options.hclPoints || [];
+        colorbarHeight = drawLabColorbar(container, width, colorbarColors);
+    }
+    
+    height = Math.max(height - colorbarHeight, 120);
+    let scale = Math.min(width, height) / 250;
+    
     function project(l, a, b) {
-        // 中心化：L: 0-100 -> -50-50（垂直），a,b: -100-100 -> 相对原点
-        let x = a;       // a 轴 -> X
-        let y = l - 50;  // L 轴 -> Y (垂直，中心在 L=50)
-        let z = b;       // b 轴 -> Z
+        let x = a;
+        let y = l - 50;
+        let z = b;
         
-        // 绕 Y 轴旋转 (Yaw)
         let x1 = x * Math.cos(lab3dYaw) - z * Math.sin(lab3dYaw);
         let z1 = x * Math.sin(lab3dYaw) + z * Math.cos(lab3dYaw);
         
-        // 绕 X 轴旋转 (Pitch)
         let y2 = y * Math.cos(lab3dPitch) - z1 * Math.sin(lab3dPitch);
         let z2 = y * Math.sin(lab3dPitch) + z1 * Math.cos(lab3dPitch);
         
-        // 屏幕投影
-        let sx = width / 2 + x1 * scale;
-        let sy = height / 2 - y2 * scale; // Y 轴翻转
-        
-        return [sx, sy, z2]; // 返回 z2 用于深度排序
+        return [width / 2 + x1 * scale, height / 2 - y2 * scale, z2];
     }
     
-    container.selectAll("*").remove();
-    
-    // 背景提示
     if (!options.noBackground) {
         container.style("background", "#f5f5f5").style("border", "1px solid #ddd");
     }
@@ -1571,15 +1596,13 @@ function updateComparisonColormap(value) {
  * 更新完整的对比模块（6个视图 + 指标）
  */
 function updateFullComparison(optimizedData) {
-    // 检查是否存在对比模块容器
     if (d3.select("#full-comparison-module").empty()) return;
 
-    // 1. 渲染优化后的 Colormap (Slot 1) - 始终显示当前状态
-    // 这里 optimizedData 其实就是 dataObj，即当前正在编辑的数据
     renderLab3D(optimizedData, "#comp-lab3d-optimized", { 
-        background: "#fdfaff", // 淡淡的紫色背景
+        background: "#fdfaff",
         noBackground: true,
-        onRotate: () => updateFullComparison(optimizedData) // 旋转回调
+        onRotate: () => updateFullComparison(optimizedData),
+        showColorbar: true
     });
     
     // 计算并显示优化后的指标
@@ -1614,8 +1637,10 @@ function updateFullComparison(optimizedData) {
         renderLab3D(mockData, "#comp-lab3d-" + comp.id, {
             background: "#fff",
             noBackground: true,
-            disableRealColor: false, // 显示真实颜色
-            onRotate: () => updateFullComparison(optimizedData) // 保持同步旋转
+            disableRealColor: false,
+            onRotate: () => updateFullComparison(optimizedData),
+            showColorbar: true,
+            colorbarColors: mapDef.controlColors
         });
 
         // 计算指标
@@ -1626,14 +1651,9 @@ function updateFullComparison(optimizedData) {
         let container = d3.select("#comp-lab3d-" + comp.id);
         let card = d3.select(container.node().closest('.colormap-card'));
         
-        card.style("cursor", "pointer")
-            .attr("title", "Click to apply this colormap")
-            .on("click", function() {
-                applyBuiltinColormap(comp.id);
-                // 视觉反馈
-                d3.selectAll(".colormap-card").style("border-color", "#ddd");
-                d3.select(this).style("border-color", "#2196F3");
-            });
+        card.style("cursor", "default")
+            .attr("title", null)
+            .on("click", null);
     });
 }
 

@@ -122,7 +122,7 @@ function renderSingleLab3D(name, controlColors, useRealColors) {
     if (!card.empty()) {
         card.style("cursor", "pointer")
             .on("click", function() {
-                switchMainColormap(name);
+                // Removed call to switchMainColormap(name) to prevent affecting render view and editor.
                 
                 // Optional: visual feedback
                 d3.selectAll('.colormap-card').style('opacity', '0.7').style('transform', 'scale(0.98)');
@@ -135,8 +135,18 @@ function renderSingleLab3D(name, controlColors, useRealColors) {
     
     container.selectAll("*").remove();
     
-    let width = container.node().clientWidth || 450;
-    let height = container.node().clientHeight || 350;
+    let rawWidth = container.node().clientWidth || 450;
+    let rawHeight = container.node().clientHeight || 350;
+    
+    let colorbarHeight = 0;
+    if (typeof window.drawLabColorbar === 'function') {
+        colorbarHeight = window.drawLabColorbar(container, rawWidth, controlColors);
+    } else {
+        colorbarHeight = drawComparisonColorbar(container, rawWidth, controlColors);
+    }
+    
+    let width = rawWidth;
+    let height = Math.max(rawHeight - colorbarHeight, 120);
     
     let scale = Math.min(width, height) / 250;
     
@@ -430,4 +440,31 @@ function hideLoading() {
     document.querySelectorAll('.loading-overlay').forEach(overlay => {
         overlay.remove();
     });
+}
+
+function drawComparisonColorbar(container, width, controlColors) {
+    if (!controlColors || !controlColors.length) return 0;
+    const height = 12;
+    const margin = 8;
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = container.append('canvas')
+        .attr('width', Math.max(1, Math.round(width * dpr)))
+        .attr('height', Math.round(height * dpr))
+        .style('width', '100%')
+        .style('height', height + 'px')
+        .style('display', 'block')
+        .style('margin-bottom', margin + 'px');
+    const ctx = canvas.node().getContext('2d');
+    ctx.scale(dpr, dpr);
+    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+    const stops = controlColors.length === 1 ? [0, 1] : controlColors.map((_, idx) => idx / (controlColors.length - 1));
+    stops.forEach((t, idx) => {
+        const sourceIdx = controlColors.length === 1 ? 0 : idx;
+        const hcl = controlColors[sourceIdx];
+        const rgb = d3.hcl(hcl[0], hcl[1], hcl[2]).rgb();
+        gradient.addColorStop(t, `rgb(${rgb.r},${rgb.g},${rgb.b})`);
+    });
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    return height + margin;
 }
