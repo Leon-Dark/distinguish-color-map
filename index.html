@@ -143,99 +143,141 @@
 
         <div class="comparison-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
             <!-- 1. Optimized (Special Highlight) -->
-            <div class="colormap-card optimized" style="border: 2px solid #764ba2; border-radius: 8px; overflow: hidden; box-shadow: 0 0 15px rgba(118, 75, 162, 0.2);">
-                <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
-                    <span>✨ Optimized Colormap</span>
-                    <span class="badge" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">Current</span>
-                </div>
-                <div class="card-body">
-                    <div id="comp-lab3d-optimized" class="lab3d-view" style="height: 300px; width: 100%;"></div>
-                    <div class="metrics-panel" style="padding: 15px; background: #fdfaff; border-top: 1px solid #eee;">
-                        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span class="metric-label" style="color: #666;">Smoothness </span>
-                            <span class="metric-value" id="smoothness-optimized" style="font-weight: bold; color: #2196F3;">--</span>
-                        </div>
+            <div>
+                <div class="colormap-card optimized" style="border: 2px solid #764ba2; border-radius: 8px; overflow: hidden; box-shadow: 0 0 15px rgba(118, 75, 162, 0.2);">
+                    <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                        <span>✨ Optimized Colormap</span>
+                        <span class="badge" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">Current</span>
                     </div>
+                    <div class="card-body">
+                        <div id="comp-lab3d-optimized" class="lab3d-view" style="height: 300px; width: 100%; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+                <div class="metrics-panel" style="padding: 15px; background: #fdfaff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">min_color_diff</span><span class="metric-value" id="smoothness-optimized" style="font-weight: bold; color: #2196F3;">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">CIE Discr.</span><span class="metric-value" id="cie-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Contrast Sens.</span><span class="metric-value" id="csens-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Hue Var.</span><span class="metric-value" id="hue-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Luminance Var.</span><span class="metric-value" id="luminance-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Chromatic Var.</span><span class="metric-value" id="chromatic-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">LAB Length</span><span class="metric-value" id="lablen-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Name Variation</span><span class="metric-value" id="namevar-optimized">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between;"><span class="metric-label" style="color: #666;">Categorization</span><span class="metric-value" id="categorization-optimized">--</span></div>
                 </div>
             </div>
 
             <!-- 2. Rainbow -->
-            <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
-                    Rainbow
-                </div>
-                <div class="card-body">
-                    <div id="comp-lab3d-rainbow" class="lab3d-view" style="height: 300px; width: 100%;"></div>
-                    <div class="metrics-panel" style="padding: 15px; background: #fff; border-top: 1px solid #eee;">
-                        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span class="metric-label" style="color: #666;">Smoothness </span>
-                            <span class="metric-value" id="smoothness-rainbow">--</span>
-                        </div>
+            <div>
+                <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
+                        Rainbow
                     </div>
+                    <div class="card-body">
+                        <div id="comp-lab3d-rainbow" class="lab3d-view" style="height: 300px; width: 100%; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+                <div class="metrics-panel" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">min_color_diff</span><span class="metric-value" id="smoothness-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">CIE Discr.</span><span class="metric-value" id="cie-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Contrast Sens.</span><span class="metric-value" id="csens-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Hue Var.</span><span class="metric-value" id="hue-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Luminance Var.</span><span class="metric-value" id="luminance-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Chromatic Var.</span><span class="metric-value" id="chromatic-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">LAB Length</span><span class="metric-value" id="lablen-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Name Variation</span><span class="metric-value" id="namevar-rainbow">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between;"><span class="metric-label" style="color: #666;">Categorization</span><span class="metric-value" id="categorization-rainbow">--</span></div>
                 </div>
             </div>
 
             <!-- 3. Thermal -->
-            <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
-                     Thermal
-                </div>
-                <div class="card-body">
-                    <div id="comp-lab3d-thermal" class="lab3d-view" style="height: 300px; width: 100%;"></div>
-                    <div class="metrics-panel" style="padding: 15px; background: #fff; border-top: 1px solid #eee;">
-                        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span class="metric-label" style="color: #666;">Smoothness </span>
-                            <span class="metric-value" id="smoothness-thermal">--</span>
-                        </div>
+            <div>
+                <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
+                         Thermal
                     </div>
+                    <div class="card-body">
+                        <div id="comp-lab3d-thermal" class="lab3d-view" style="height: 300px; width: 100%; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+                <div class="metrics-panel" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">min_color_diff</span><span class="metric-value" id="smoothness-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">CIE Discr.</span><span class="metric-value" id="cie-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Contrast Sens.</span><span class="metric-value" id="csens-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Hue Var.</span><span class="metric-value" id="hue-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Luminance Var.</span><span class="metric-value" id="luminance-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Chromatic Var.</span><span class="metric-value" id="chromatic-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">LAB Length</span><span class="metric-value" id="lablen-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Name Variation</span><span class="metric-value" id="namevar-thermal">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between;"><span class="metric-label" style="color: #666;">Categorization</span><span class="metric-value" id="categorization-thermal">--</span></div>
                 </div>
             </div>
 
             <!-- 4. Viridis -->
-            <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
-                     Viridis
-                </div>
-                <div class="card-body">
-                    <div id="comp-lab3d-viridis" class="lab3d-view" style="height: 300px; width: 100%;"></div>
-                    <div class="metrics-panel" style="padding: 15px; background: #fff; border-top: 1px solid #eee;">
-                        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span class="metric-label" style="color: #666;">Smoothness </span>
-                            <span class="metric-value" id="smoothness-viridis">--</span>
-                        </div>
+            <div>
+                <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
+                         Viridis
                     </div>
+                    <div class="card-body">
+                        <div id="comp-lab3d-viridis" class="lab3d-view" style="height: 300px; width: 100%; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+                <div class="metrics-panel" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">min_color_diff</span><span class="metric-value" id="smoothness-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">CIE Discr.</span><span class="metric-value" id="cie-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Contrast Sens.</span><span class="metric-value" id="csens-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Hue Var.</span><span class="metric-value" id="hue-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Luminance Var.</span><span class="metric-value" id="luminance-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Chromatic Var.</span><span class="metric-value" id="chromatic-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">LAB Length</span><span class="metric-value" id="lablen-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Name Variation</span><span class="metric-value" id="namevar-viridis">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between;"><span class="metric-label" style="color: #666;">Categorization</span><span class="metric-value" id="categorization-viridis">--</span></div>
                 </div>
             </div>
 
             <!-- 5. Jet -->
-            <div class="colormap-card" style="border: 1px solid #ffebee; border-radius: 8px; overflow: hidden;">
-               <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
-                     Jet
-                </div>
-                <div class="card-body">
-                    <div id="comp-lab3d-jet" class="lab3d-view" style="height: 300px; width: 100%;"></div>
-                    <div class="metrics-panel" style="padding: 15px; background: #fff; border-top: 1px solid #eee;">
-                        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span class="metric-label" style="color: #666;">Smoothness </span>
-                            <span class="metric-value" id="smoothness-jet">--</span>
-                        </div>
+            <div>
+                <div class="colormap-card" style="border: 1px solid #ffebee; border-radius: 8px; overflow: hidden;">
+                   <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
+                         Jet
                     </div>
+                    <div class="card-body">
+                        <div id="comp-lab3d-jet" class="lab3d-view" style="height: 300px; width: 100%; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+                <div class="metrics-panel" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">min_color_diff</span><span class="metric-value" id="smoothness-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">CIE Discr.</span><span class="metric-value" id="cie-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Contrast Sens.</span><span class="metric-value" id="csens-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Hue Var.</span><span class="metric-value" id="hue-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Luminance Var.</span><span class="metric-value" id="luminance-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Chromatic Var.</span><span class="metric-value" id="chromatic-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">LAB Length</span><span class="metric-value" id="lablen-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Name Variation</span><span class="metric-value" id="namevar-jet">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between;"><span class="metric-label" style="color: #666;">Categorization</span><span class="metric-value" id="categorization-jet">--</span></div>
                 </div>
             </div>
 
             <!-- 6. Plasma -->
-            <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
-                    Plasma
-                </div>
-                <div class="card-body">
-                    <div id="comp-lab3d-plasma" class="lab3d-view" style="height: 300px; width: 100%;"></div>
-                    <div class="metrics-panel" style="padding: 15px; background: #fff; border-top: 1px solid #eee;">
-                        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                            <span class="metric-label" style="color: #666;">Smoothness </span>
-                            <span class="metric-value" id="smoothness-plasma">--</span>
-                        </div>
+            <div>
+                <div class="colormap-card" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd;">
+                        Plasma
                     </div>
+                    <div class="card-body">
+                        <div id="comp-lab3d-plasma" class="lab3d-view" style="height: 300px; width: 100%; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+                <div class="metrics-panel" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">min_color_diff</span><span class="metric-value" id="smoothness-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">CIE Discr.</span><span class="metric-value" id="cie-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Contrast Sens.</span><span class="metric-value" id="csens-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Hue Var.</span><span class="metric-value" id="hue-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Luminance Var.</span><span class="metric-value" id="luminance-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Chromatic Var.</span><span class="metric-value" id="chromatic-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">LAB Length</span><span class="metric-value" id="lablen-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;"><span class="metric-label" style="color: #666;">Name Variation</span><span class="metric-value" id="namevar-plasma">--</span></div>
+                    <div class="metric-item" style="display: flex; justify-content: space-between;"><span class="metric-label" style="color: #666;">Categorization</span><span class="metric-value" id="categorization-plasma">--</span></div>
                 </div>
             </div>
         </div>

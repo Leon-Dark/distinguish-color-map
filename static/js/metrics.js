@@ -176,6 +176,669 @@ function calcSmoothnessMinDiff(palette) {
     return min_color_diff;
 }
 
+// ---------- Static metrics helpers for comparison cards ----------
+
+/**
+ * Build a lightweight colormap adapter from HCL control colors.
+ * The adapter exposes mapValue(t) in [0,1] and getMinMax() for downstream metrics.
+ */
+function createColormapAdapterFromHCL(controlColors) {
+    if (!Array.isArray(controlColors) || controlColors.length < 2) {
+        return null;
+    }
+
+    return {
+        getMinMax: function() {
+            return [0, 1];
+        },
+        mapValue: function(t) {
+            // Clamp and find segment
+            const clamped = Math.min(1, Math.max(0, t));
+            const scaled = clamped * (controlColors.length - 1);
+            let idx = Math.floor(scaled);
+            if (idx >= controlColors.length - 1) idx = controlColors.length - 2;
+            const localT = scaled - idx;
+
+            const c1 = controlColors[idx];
+            const c2 = controlColors[idx + 1];
+            if (!c1 || !c2) return null;
+
+            // Shortest hue interpolation
+            let diff = c2[0] - c1[0];
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+
+            const h = (c1[0] + diff * localT + 360) % 360;
+            const c = c1[1] + (c2[1] - c1[1]) * localT;
+            const l = c1[2] + (c2[2] - c1[2]) * localT;
+
+            const rgb = d3.rgb(d3.lab(d3.hcl(h, c, l)));
+            return { r: rgb.r, g: rgb.g, b: rgb.b };
+        }
+    };
+}
+
+/**
+ * Normalize a colormap to a fixed number of samples in [0,1].
+ * Accepts either a colormap object (with mapValue/getMinMax) or an array of HCL control colors.
+ */
+function createStandardizedColormap(colormap) {
+    if (Array.isArray(colormap)) {
+        colormap = createColormapAdapterFromHCL(colormap);
+    }
+
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return null;
+    }
+
+    let [minValue, maxValue] = [0, 1];
+    try {
+        const range = colormap.getMinMax ? colormap.getMinMax() : null;
+        if (range && range.length === 2) {
+            [minValue, maxValue] = range;
+        }
+    } catch (error) {
+        console.warn("Cannot get colormap range, using default [0, 1]:", error);
+    }
+
+    const SAMPLE_SIZE = 256;
+    const standardizedColors = [];
+
+    for (let i = 0; i < SAMPLE_SIZE; i++) {
+        const t = minValue + (i / (SAMPLE_SIZE - 1)) * (maxValue - minValue);
+
+        try {
+            const color = colormap.mapValue ? colormap.mapValue(t) : null;
+
+            if (color) {
+                let r, g, b;
+
+                if (typeof color.r === 'number' && typeof color.g === 'number' && typeof color.b === 'number') {
+                    r = color.r;
+                    g = color.g;
+                    b = color.b;
+                } else if (color.rgb && typeof color.rgb.r === 'number') {
+                    r = color.rgb.r;
+                    g = color.rgb.g;
+                    b = color.rgb.b;
+                } else if (typeof color.toString === 'function') {
+                    const rgbString = color.toString();
+                    const rgbMatch = rgbString.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+                    if (rgbMatch) {
+                        r = parseInt(rgbMatch[1], 10);
+                        g = parseInt(rgbMatch[2], 10);
+                        b = parseInt(rgbMatch[3], 10);
+                    }
+                }
+
+                if (typeof r === 'number' && typeof g === 'number' && typeof b === 'number') {
+                    standardizedColors.push({
+                        value: (t - minValue) / (maxValue - minValue),
+                        rgb: [r, g, b]
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`Error getting color at position ${t}:`, error);
+        }
+    }
+
+    if (standardizedColors.length === 0) {
+        console.error("No valid colors found in colormap");
+        return null;
+    }
+
+    return standardizedColors;
+}
+
+function computeDeltaE(L1, a1, b1, L2, a2, b2, wa = 0.1, wb = 0.1) {
+    if (isNaN(L1) || isNaN(a1) || isNaN(b1) || isNaN(L2) || isNaN(a2) || isNaN(b2)) {
+        console.error("computeDeltaE received invalid parameters:", { L1, a1, b1, L2, a2, b2 });
+        return 0;
+    }
+
+    let deltaL = L1 - L2;
+    let deltaA = a1 - a2;
+    let deltaB = b1 - b2;
+
+    if (isNaN(deltaL) || isNaN(deltaA) || isNaN(deltaB)) {
+        console.error("computeDeltaE calculation error:", { deltaL, deltaA, deltaB });
+        return 0;
+    }
+
+    const result = Math.sqrt(
+        Math.pow(deltaL, 2) +
+        wa * Math.pow(deltaA, 2) +
+        wb * Math.pow(deltaB, 2)
+    );
+
+    if (isNaN(result)) {
+        console.error("computeDeltaE final result is NaN");
+        return 0;
+    }
+
+    return result;
+}
+
+function discriminatory_cie(colormap) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    let totalSpeed = 0;
+    let pairCount = 0;
+
+    for (let i = 0; i < colors.length; i++) {
+        for (let j = i + 1; j < colors.length; j++) {
+            const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
+            const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+            const lab1 = d3.lab(rgbColor1);
+            const lab2 = d3.lab(rgbColor2);
+
+            const deltaE = typeof ciede2000 === 'function'
+                ? ciede2000([lab1.l || lab1.L, lab1.a, lab1.b], [lab2.l || lab2.L, lab2.a, lab2.b])
+                : d3_ciede2000(lab1, lab2);
+
+            const v_ij = deltaE / Math.abs((j - i) / (colors.length - 1));
+            totalSpeed += v_ij;
+            pairCount++;
+        }
+    }
+
+    const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
+    return globalDiscriminativePower;
+}
+
+function discriminatory_contrast_sensitivity(colormap) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    let totalSpeed = 0;
+    let pairCount = 0;
+
+    try {
+        for (let i = 0; i < colors.length; i++) {
+            for (let j = i + 1; j < colors.length; j++) {
+                const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
+                const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+
+                if (!rgbColor1 || !rgbColor2) {
+                    continue;
+                }
+
+                const lab1 = d3.lab(rgbColor1);
+                const lab2 = d3.lab(rgbColor2);
+
+                const l1 = Number(lab1.l !== undefined ? lab1.l : lab1.L);
+                const a1 = Number(lab1.a);
+                const b1 = Number(lab1.b);
+                const l2 = Number(lab2.l !== undefined ? lab2.l : lab2.L);
+                const a2 = Number(lab2.a);
+                const b2 = Number(lab2.b);
+
+                const deltaE = computeDeltaE(l1, a1, b1, l2, a2, b2);
+                if (!deltaE) continue;
+
+                const normalizationFactor = Math.abs((j - i) / (colors.length - 1));
+                if (!normalizationFactor) continue;
+
+                const v_ij = deltaE / normalizationFactor;
+                if (!v_ij) continue;
+
+                const contribution = 3.4 * Math.pow(v_ij, 0.879);
+
+                totalSpeed += contribution;
+                pairCount++;
+            }
+        }
+
+        const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
+        return globalDiscriminativePower;
+    } catch (error) {
+        console.error("discriminatory_contrast_sensitivity error:", error);
+        return 0;
+    }
+}
+
+function discriminatory_hue(colormap) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    let totalSpeed = 0;
+    let pairCount = 0;
+
+    for (let i = 0; i < colors.length; i++) {
+        for (let j = i + 1; j < colors.length; j++) {
+            const rgbColor1 = d3.rgb(colors[i].rgb[0], colors[i].rgb[1], colors[i].rgb[2]);
+            const rgbColor2 = d3.rgb(colors[j].rgb[0], colors[j].rgb[1], colors[j].rgb[2]);
+
+            const hcl1 = d3.hcl(rgbColor1);
+            const hcl2 = d3.hcl(rgbColor2);
+
+            const h1 = isNaN(hcl1.h) ? 0 : hcl1.h;
+            const h2 = isNaN(hcl2.h) ? 0 : hcl2.h;
+
+            let hueDiff = Math.abs(h1 - h2);
+            if (hueDiff > 180) {
+                hueDiff = 360 - hueDiff;
+            }
+
+            const normFactor = Math.abs((j - i) / (colors.length - 1));
+            const v_ij = normFactor ? (hueDiff / normFactor) : 0;
+
+            totalSpeed += v_ij;
+            pairCount++;
+        }
+    }
+
+    const globalDiscriminativePower = pairCount > 0 ? totalSpeed / pairCount : 0;
+    return globalDiscriminativePower;
+}
+
+function luminance_variation(colormap) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    const luminanceValues = [];
+    for (let i = 0; i < colors.length; i++) {
+        const r = parseInt(colors[i].rgb[0]);
+        const g = parseInt(colors[i].rgb[1]);
+        const b = parseInt(colors[i].rgb[2]);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) continue;
+
+        const rgbColor = d3.rgb(r, g, b);
+        const hcl = d3.hcl(rgbColor);
+        const lValue = hcl.l !== undefined ? hcl.l : hcl.L;
+        if (typeof lValue === 'number' && !isNaN(lValue)) {
+            luminanceValues.push(lValue);
+        }
+    }
+
+    if (!luminanceValues.length) return 0;
+
+    let totalVariation = 0;
+    for (let i = 1; i < luminanceValues.length; i++) {
+        totalVariation += Math.abs(luminanceValues[i] - luminanceValues[i - 1]);
+    }
+
+    return totalVariation;
+}
+
+function chromatic_variation(colormap) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    const saturationValues = [];
+    for (let i = 0; i < colors.length; i++) {
+        const r = parseInt(colors[i].rgb[0]);
+        const g = parseInt(colors[i].rgb[1]);
+        const b = parseInt(colors[i].rgb[2]);
+
+        if (isNaN(r) || isNaN(g) || isNaN(b)) continue;
+
+        const rgbColor = d3.rgb(r, g, b);
+        const hcl = d3.hcl(rgbColor);
+
+        const cValue = hcl.c !== undefined ? hcl.c : hcl.C;
+        if (typeof cValue === 'number' && !isNaN(cValue)) {
+            saturationValues.push(cValue);
+        }
+    }
+
+    if (!saturationValues.length) return 0;
+
+    let totalVariation = 0;
+    for (let i = 1; i < saturationValues.length; i++) {
+        totalVariation += Math.abs(saturationValues[i] - saturationValues[i - 1]);
+    }
+
+    return totalVariation;
+}
+
+function calculate_lab_length(colormap, sampleCount = 9) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    const samples = [];
+    const step = (colors.length - 1) / (sampleCount - 1);
+
+    for (let i = 0; i < sampleCount; i++) {
+        const index = Math.min(Math.floor(i * step), colors.length - 1);
+        const r = parseInt(colors[index].rgb[0]);
+        const g = parseInt(colors[index].rgb[1]);
+        const b = parseInt(colors[index].rgb[2]);
+
+        if (isNaN(r) || isNaN(g) || isNaN(b)) continue;
+
+        const rgbColor = d3.rgb(r, g, b);
+        const lab = d3.lab(rgbColor);
+        if (!isNaN(lab.l !== undefined ? lab.l : lab.L) && !isNaN(lab.a) && !isNaN(lab.b)) {
+            samples.push(lab);
+        }
+    }
+
+    if (samples.length < 2) return 0;
+
+    let totalLabLength = 0;
+
+    for (let i = 0; i < samples.length - 1; i++) {
+        const lab1 = samples[i];
+        const lab2 = samples[i + 1];
+
+        const l1 = lab1.l !== undefined ? lab1.l : lab1.L;
+        const l2 = lab2.l !== undefined ? lab2.l : lab2.L;
+
+        const distance = Math.sqrt(
+            Math.pow(l2 - l1, 2) +
+            Math.pow(lab2.a - lab1.a, 2) +
+            Math.pow(lab2.b - lab1.b, 2)
+        );
+
+        totalLabLength += distance || 0;
+    }
+
+    return totalLabLength;
+}
+
+function calculate_color_name_variation(colormap, sampleCount = 9) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return 0;
+    }
+
+    const colors = createStandardizedColormap(colormap);
+
+    if (!colors || !colors.length) {
+        console.error("Invalid colors array:", colors);
+        return 0;
+    }
+
+    const samples = [];
+    const step = (colors.length - 1) / (sampleCount - 1);
+
+    for (let i = 0; i < sampleCount; i++) {
+        const index = Math.min(Math.floor(i * step), colors.length - 1);
+        const r = parseInt(colors[index].rgb[0]);
+        const g = parseInt(colors[index].rgb[1]);
+        const b = parseInt(colors[index].rgb[2]);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) continue;
+        samples.push(d3.rgb(r, g, b));
+    }
+
+    let totalNameDifference = 0;
+    let validPairs = 0;
+
+    for (let i = 0; i < samples.length - 1; i++) {
+        const c0 = samples[i];
+        const c1 = samples[i + 1];
+        if (c0 && c1 && typeof getNameDifference === 'function') {
+            const nameDiff = getNameDifference(c0, c1);
+            if (!isNaN(nameDiff) && isFinite(nameDiff)) {
+                totalNameDifference += nameDiff;
+                validPairs++;
+            }
+        }
+    }
+
+    if (validPairs === 0) return 0;
+
+    return totalNameDifference;
+}
+
+function nameSalience(c) {
+    if (typeof getColorSaliency === 'function') {
+        return getColorSaliency(c);
+    }
+    if (typeof c3 === 'undefined' || !c3.color) return 0;
+    const i = typeof getColorNameIndex === 'function' ? getColorNameIndex(c) : 0;
+    const minE = -4.5;
+    const maxE = 0.0;
+    const ent = c3.color.entropy(i);
+    return (ent - minE) / (maxE - minE);
+}
+
+function selectClusterCentroid(cluster) {
+    if (!cluster || !cluster.colors || !cluster.colors.length) return null;
+    let maxSaliency = -Infinity;
+    let centroid = cluster.colors[0];
+    cluster.colors.forEach(color => {
+        try {
+            const saliency = nameSalience(color);
+            if (!isNaN(saliency) && saliency > maxSaliency) {
+                maxSaliency = saliency;
+                centroid = color;
+            }
+        } catch (e) {
+            // Ignore saliency errors and keep previous centroid
+        }
+    });
+    return centroid;
+}
+
+function agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold = 0.6) {
+    if (!samples || !samples.length) return [];
+
+    let clusters = samples.map((_, idx) => ({ indices: [idx] }));
+
+    let merged = true;
+    while (merged && clusters.length > 1) {
+        merged = false;
+        let minDissimilarity = Infinity;
+        let mergeIndex = -1;
+
+        for (let i = 0; i < clusters.length - 1; i++) {
+            const c1 = clusters[i];
+            const c2 = clusters[i + 1];
+
+            let total = 0;
+            let count = 0;
+            c1.indices.forEach(a => {
+                c2.indices.forEach(b => {
+                    total += distMatrix[a][b];
+                    count++;
+                });
+            });
+
+            const avgDissim = count ? total / count : Infinity;
+            if (avgDissim < minDissimilarity) {
+                minDissimilarity = avgDissim;
+                mergeIndex = i;
+            }
+        }
+
+        if (mergeIndex >= 0 && minDissimilarity < dissimilarityThreshold) {
+            const mergedCluster = {
+                indices: [...clusters[mergeIndex].indices, ...clusters[mergeIndex + 1].indices]
+            };
+            clusters.splice(mergeIndex, 2, mergedCluster);
+            merged = true;
+        }
+    }
+
+    return clusters;
+}
+
+function calculate_color_categorization_tendency(colormap, sampleCount = 60, dissimilarityThreshold = 0.6) {
+    if (!colormap) {
+        console.error("Invalid colormap object:", colormap);
+        return { value: 0, clusterCount: 0, meanDeltaE: 0 };
+    }
+
+    const colors = createStandardizedColormap(colormap);
+    if (!colors || !colors.length) {
+        return { value: 0, clusterCount: 0, meanDeltaE: 0 };
+    }
+
+    const samples = [];
+    const step = Math.max(1, Math.floor(colors.length / sampleCount));
+    for (let i = 0; i < colors.length; i += step) {
+        if (samples.length >= sampleCount) break;
+        const rgbArr = colors[i].rgb;
+        samples.push(d3.rgb(rgbArr[0], rgbArr[1], rgbArr[2]));
+    }
+
+    if (samples.length < 2) {
+        return { value: 0, clusterCount: 0, meanDeltaE: 0 };
+    }
+
+    const distMatrix = new Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+        distMatrix[i] = new Array(samples.length);
+        for (let j = 0; j < samples.length; j++) {
+            if (i === j) {
+                distMatrix[i][j] = 0;
+            } else if (j > i) {
+                distMatrix[i][j] = getNameDifference(samples[i], samples[j]);
+            } else {
+                distMatrix[i][j] = distMatrix[j][i];
+            }
+        }
+    }
+
+    const clusters = agglomerativeClusteringOptimized(samples, distMatrix, dissimilarityThreshold);
+    const K = clusters.length;
+    if (K < 2) {
+        return { value: 0, clusterCount: K, meanDeltaE: 0 };
+    }
+
+    const centroids = [];
+    clusters.forEach(cluster => {
+        const clusterColors = cluster.indices.map(idx => samples[idx]);
+        const centroid = selectClusterCentroid({ colors: clusterColors });
+        if (centroid) centroids.push(centroid);
+    });
+
+    if (centroids.length < 2) {
+        return { value: 0, clusterCount: K, meanDeltaE: 0 };
+    }
+
+    let totalDeltaE = 0;
+    let pairCount = 0;
+
+    for (let i = 0; i < centroids.length; i++) {
+        for (let j = i + 1; j < centroids.length; j++) {
+            const lab1 = d3.lab(centroids[i]);
+            const lab2 = d3.lab(centroids[j]);
+
+            const l1 = lab1.l !== undefined ? lab1.l : lab1.L;
+            const l2 = lab2.l !== undefined ? lab2.l : lab2.L;
+
+            const deltaE = d3_ciede2000({ L: l1, a: lab1.a, b: lab1.b }, { L: l2, a: lab2.a, b: lab2.b });
+
+            if (!isNaN(deltaE) && isFinite(deltaE)) {
+                totalDeltaE += deltaE;
+                pairCount++;
+            }
+        }
+    }
+
+    const meanDeltaE = pairCount > 0 ? totalDeltaE / pairCount : 0;
+    const categorizationTendency = K * meanDeltaE;
+
+    return {
+        value: categorizationTendency,
+        clusterCount: K,
+        meanDeltaE: meanDeltaE
+    };
+}
+
+/**
+ * Aggregate metrics used by the comparison cards.
+ * @param {Array} controlColors HCL control points
+ * @returns {Object} metric bundle
+ */
+function computeCardMetrics(controlColors) {
+    const defaultMetrics = {
+        smoothness: 0,
+        discriminatoryCie: 0,
+        contrastSensitivity: 0,
+        hue: 0,
+        luminanceVariation: 0,
+        chromaticVariation: 0,
+        labLength: 0,
+        nameVariation: 0,
+        categorization: 0,
+        categoryCount: 0,
+        categoryMeanDeltaE: 0
+    };
+
+    const colormapAdapter = createColormapAdapterFromHCL(controlColors);
+    if (!colormapAdapter) return defaultMetrics;
+
+    const metrics = { ...defaultMetrics };
+
+    try { metrics.smoothness = calcSmoothnessMinDiff(controlColors); } catch (e) {}
+    try { metrics.discriminatoryCie = discriminatory_cie(colormapAdapter); } catch (e) {}
+    try { metrics.contrastSensitivity = discriminatory_contrast_sensitivity(colormapAdapter); } catch (e) {}
+    try { metrics.hue = discriminatory_hue(colormapAdapter); } catch (e) {}
+    try { metrics.luminanceVariation = luminance_variation(colormapAdapter); } catch (e) {}
+    try { metrics.chromaticVariation = chromatic_variation(colormapAdapter); } catch (e) {}
+    try { metrics.labLength = calculate_lab_length(colormapAdapter); } catch (e) {}
+    try { metrics.nameVariation = calculate_color_name_variation(colormapAdapter); } catch (e) {}
+    try {
+        const cat = calculate_color_categorization_tendency(colormapAdapter);
+        metrics.categorization = cat.value;
+        metrics.categoryCount = cat.clusterCount;
+        metrics.categoryMeanDeltaE = cat.meanDeltaE;
+    } catch (e) {}
+
+    return metrics;
+}
+
 
 /**
  * luminance profile: monotonically increasing, diverging, wave(thermal)

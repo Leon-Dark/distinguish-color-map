@@ -320,33 +320,30 @@ function interpolateHCL(controlColors, t) {
  * 计算并显示指标
  */
 function calculateAndDisplayMetrics(name, controlColors) {
-    // 转换为Lab
-    let palette_lab = [];
-    for (let i = 0; i < controlColors.length; i++) {
-        let lab = d3.lab(d3.hcl(controlColors[i][0], controlColors[i][1], controlColors[i][2]));
-        palette_lab.push([lab.L, lab.a, lab.b]);
+    const metrics = (typeof computeCardMetrics === 'function')
+        ? computeCardMetrics(controlColors)
+        : { smoothness: 0, discriminatoryCie: 0, contrastSensitivity: 0, hue: 0, luminanceVariation: 0, chromaticVariation: 0, labLength: 0, nameVariation: 0, categorization: 0, categoryCount: 0, categoryMeanDeltaE: 0 };
+
+    // Prefer the shared panel updater if it exists
+    if (typeof updateMetricPanel === 'function') {
+        updateMetricPanel(name, metrics);
+        return;
     }
-    
-    // 计算平滑度（使用metrics.js中的新函数：最小颜色差异）
-    let smoothness = calcSmoothnessMinDiff(controlColors);
-    
-    // 简化的对比度计算（实际应使用完整的metrics）
-    let avgContrast = 7.5; // 占位符
-    
-    // 简化的颜色区分度
-    let nameDiff = 2.0; // 占位符
-    
-    // 综合评分
-    let score = 0.003 * avgContrast + nameDiff + smoothness; // Update score formula if needed, or keep as is? 
-    // The user didn't ask to change the score formula, but the smoothness metric changed meaning/scale. 
-    // Old smoothness was 0-1 penalty. New one is Min Delta E (0 to ~100).
-    // The user strictly asked to change the *displayed value* of smoothness.
-    
-    // Update UI - Correcting ID selector to match HTML (smoothness-name)
-    d3.select('#smoothness-' + name).text(smoothness.toFixed(4));
-    d3.select('#contrast-' + name).text(avgContrast.toFixed(2));
-    d3.select('#namediff-' + name).text(nameDiff.toFixed(2));
-    d3.select('#score-' + name).text(score.toFixed(2));
+
+    const formatValue = (val, digits = 2) => (isFinite(val) ? val.toFixed(digits) : '--');
+
+    d3.select('#smoothness-' + name).text(formatValue(metrics.smoothness, 4));
+    d3.select('#cie-' + name).text(formatValue(metrics.discriminatoryCie, 2));
+    d3.select('#csens-' + name).text(formatValue(metrics.contrastSensitivity, 2));
+    d3.select('#hue-' + name).text(formatValue(metrics.hue, 2));
+    d3.select('#luminance-' + name).text(formatValue(metrics.luminanceVariation, 2));
+    d3.select('#chromatic-' + name).text(formatValue(metrics.chromaticVariation, 2));
+    d3.select('#lablen-' + name).text(formatValue(metrics.labLength, 2));
+    d3.select('#namevar-' + name).text(formatValue(metrics.nameVariation, 2));
+    const catText = (isFinite(metrics.categorization))
+        ? `${metrics.categorization.toFixed(2)} (K=${metrics.categoryCount || 0})`
+        : '--';
+    d3.select('#categorization-' + name).text(catText);
 }
 
 /**

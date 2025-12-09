@@ -1718,105 +1718,25 @@ function applyBuiltinColormap(name) {
 
 // 计算各项指标的辅助函数
 function calculateMetrics(colormapHCL, controlColors) {
-    // 默认返回值
-    let defaultMetrics = { smoothness: 0, contrast: 0, discrimination: 0, score: 0 };
-    if (!colormapHCL || !Array.isArray(colormapHCL) || colormapHCL.length === 0) {
-        return defaultMetrics;
+    if (typeof computeCardMetrics === 'function') {
+        // 优先使用新的静态指标合集
+        return computeCardMetrics(controlColors || colormapHCL || []);
     }
-
-    // 1. Smoothness: 计算 256 个重采样点之间最小的 Lab 色差
-    let smoothness = 0;
-    if (controlColors && controlColors.length > 1) {
-        try {
-            let samples = [];
-            let numSamples = 256;
-            
-            for (let k = 0; k < numSamples; k++) {
-                let t_total = k / (numSamples - 1); // 0 to 1
-                
-                // 找到所在的段
-                let segmentIndex = Math.floor(t_total * (controlColors.length - 1));
-                if (segmentIndex >= controlColors.length - 1) segmentIndex = controlColors.length - 2;
-                
-                // 段内局部 t
-                let segmentLength = 1 / (controlColors.length - 1);
-                let t = (t_total - segmentIndex * segmentLength) / segmentLength;
-                
-                // 插值
-                let c1 = controlColors[segmentIndex];
-                let c2 = controlColors[segmentIndex + 1];
-                
-                let h1 = c1[0];
-                let h2 = c2[0];
-                let diff = h2 - h1;
-                // 最短路径 Hue 插值
-                if (diff > 180) diff -= 360;
-                if (diff < -180) diff += 360;
-                
-                let h = (h1 + diff * t + 360) % 360;
-                let c = c1[1] + (c2[1] - c1[1]) * t;
-                let l = c1[2] + (c2[2] - c1[2]) * t;
-                
-                let lab = d3.lab(d3.hcl(h, c, l));
-                samples.push(lab);
-            }
-            
-            // 计算相邻 Lab 距离的最小值
-            let minDeltaE = Infinity;
-            for (let k = 0; k < samples.length - 1; k++) {
-                let deltaE;
-                // 使用项目定义的 d3_ciede2000 计算色差 (如果可用)
-                if (typeof d3_ciede2000 === 'function') {
-                    deltaE = d3_ciede2000(samples[k], samples[k+1]);
-                } else {
-                    // Fallback to Euclidean
-                    let dL = samples[k].l - samples[k+1].l;
-                    let da = samples[k].a - samples[k+1].a;
-                    let db = samples[k].b - samples[k+1].b;
-                    deltaE = Math.sqrt(dL*dL + da*da + db*db);
-                }
-                
-                if (deltaE < minDeltaE) {
-                    minDeltaE = deltaE;
-                }
-            }
-            smoothness = minDeltaE;
-            
-        } catch (e) {
-            console.warn("Smoothness calculation failed:", e);
-        }
-    } else {
-        // Fallback if no controlColors: use provided HCL points
-        // ... (Optional fallback)
-    }
-
-    // 简单模拟其他指标（如果没有现有函数）
-    // 对比度: L 的范围
-    let contrast = 0;
-    try {
-        let l_values = colormapHCL.map(c => d3.lab(d3.hcl(c[0], c[1], c[2])).L);
-        contrast = Math.max(...l_values) - Math.min(...l_values);
-    } catch(e) {}
-    
-    // 区分度: 基于 Lab 距离的总和
-    let discrimination = 0;
-    // ...
-
-    // 综合评分 (模拟公式)
-    let score = (contrast * 0.5) + (100 - smoothness * 500); 
-    if (score < 0) score = 0;
-    if (score > 100) score = 95;
-
-    return {
-        smoothness: smoothness,
-        contrast: contrast,
-        discrimination: discrimination, // 暂略
-        score: score
-    };
+    return { smoothness: 0, contrast: 0, discrimination: 0, score: 0 };
 }
 
 function updateMetricPanel(id, metrics) {
-    d3.select(`#smoothness-${id}`).text(metrics.smoothness.toFixed(4));
-    // 可以根据 ID 填充其他指标
-    d3.select(`#score-${id}`).text(metrics.score.toFixed(0));
+    const formatVal = (val, digits = 2) => (isFinite(val) ? val.toFixed(digits) : '--');
+    d3.select(`#smoothness-${id}`).text(formatVal(metrics.smoothness, 4));
+    d3.select(`#cie-${id}`).text(formatVal(metrics.discriminatoryCie, 2));
+    d3.select(`#csens-${id}`).text(formatVal(metrics.contrastSensitivity, 2));
+    d3.select(`#hue-${id}`).text(formatVal(metrics.hue, 2));
+    d3.select(`#luminance-${id}`).text(formatVal(metrics.luminanceVariation, 2));
+    d3.select(`#chromatic-${id}`).text(formatVal(metrics.chromaticVariation, 2));
+    d3.select(`#lablen-${id}`).text(formatVal(metrics.labLength, 2));
+    d3.select(`#namevar-${id}`).text(formatVal(metrics.nameVariation, 2));
+    const catText = (isFinite(metrics.categorization))
+        ? `${metrics.categorization.toFixed(2)} (K=${metrics.categoryCount || 0})`
+        : '--';
+    d3.select(`#categorization-${id}`).text(catText);
 }
