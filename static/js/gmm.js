@@ -276,8 +276,10 @@ function calculateGMM(data, num) {
         received_array: levels,
         GMM: finalModel.means.map((m, i) => ({
             mean: m,
-            stdDev: Math.sqrt(finalModel.variances[i])
-        }))
+            stdDev: Math.sqrt(finalModel.variances[i]),
+            weight: finalModel.weights[i]
+        })),
+        gmmModel: finalModel  // Full model for scoring function
     };
 }
 

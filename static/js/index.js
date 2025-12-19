@@ -170,6 +170,10 @@ function generateColormap() {
 
     let preferredObj = simulatedAnnealing()
     data_arr[current_data_id].setControlColors(preferredObj.palette)
+    
+    // 更新 initialControlColors，使新的优化结果成为新的 "Optimized" 基准
+    data_arr[current_data_id].initialControlColors = JSON.parse(JSON.stringify(preferredObj.palette));
+    // 保持 GMM 控制点不变（优化只改变颜色，不改变控制点位置）
 
     drawColormap(data_arr[current_data_id])
     drawControlPoints(data_arr[current_data_id])
@@ -182,7 +186,7 @@ function generateColormap() {
         renderCanvas(data_arr[current_data_id])
     }
     
-    // 更新底部完整的对比模块
+    // 更新底部完整的对比模块（会更新 Optimized 卡片显示新结果）
     if (typeof updateFullComparison === 'function') {
         updateFullComparison(data_arr[current_data_id]);
     }

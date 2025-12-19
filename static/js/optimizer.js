@@ -1,11 +1,14 @@
 function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.0001, cooling_param = 0.99) {
-    // initialize colors
+    // initialize colors with monotonically increasing luminance
     let palette_size = data_arr[current_data_id].controlPoints.length;
     let initial_colors = []
     for (let i = 0; i < palette_size; i++) {
         let hue = (initial_hue - i * 360 / palette_size + 360) % 360
-        let c = gamutMappingHCL(hue, 100, i % 2 == 0 ? 10 : 90)
-        initial_colors.push([hue, c, i % 2 == 0 ? 10 : 90])
+        // Turbo-like luminance: 10 -> 90 -> 10 (Arch shape)
+        let x = i / (palette_size - 1);
+        let luminance = 10 + 80 * Math.sin(Math.PI * x);
+        let c = gamutMappingHCL(hue, 100, luminance)
+        initial_colors.push([hue, c, luminance])
     }
     for (let i = 0; i < palette_size; i++) {
         disturbColor(initial_colors, i)
@@ -45,10 +48,11 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
         }
 
         // once the hue changed, we need to find a suitable luminance
-        // 开始和结束的luminance不进行修改
-        // if (idx != 0 && idx != pal.length-1) {
-        // 初始化luminance和chroma
-        c[2] = idx % 2 == 0 ? 10 : 90
+        // Maintain Turbo-like luminance (Arch shape)
+        // Calculate target luminance based on position (Arch)
+        let x = idx / (pal.length - 1);
+        let targetL = 10 + 80 * Math.sin(Math.PI * x);
+        c[2] = targetL
         c[1] = gamutMappingHCL(c[0], 100, c[2])
         // 寻找一个合适的luminance，使得该颜色不是黑色或白色
         for (let j = 0; j < 30; j++) {
@@ -61,10 +65,28 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
                 // console.log(idx, hcl, name, nd_black, nd_white);
                 break
             }
-            if (nd_black < 0.95)
+            // Adjust luminance while maintaining arch shape
+            let peak = Math.floor((pal.length - 1) / 2)
+            let minL = 10, maxL = 95
+            
+            if (idx < peak) {
+                minL = (idx > 0) ? pal[idx - 1][2] + 1 : 10
+                maxL = pal[idx + 1][2] - 1
+            } else if (idx > peak) {
+                maxL = pal[idx - 1][2] - 1
+                minL = (idx < pal.length - 1) ? pal[idx + 1][2] + 1 : 10
+            } else { // idx == peak
+                let left = (idx > 0) ? pal[idx - 1][2] : 10
+                let right = (idx < pal.length - 1) ? pal[idx + 1][2] : 10
+                minL = Math.max(left, right) + 1
+            }
+            
+            if (nd_black < 0.95 && c[2] < maxL)
                 c[2] += 1
-            if (nd_white < 0.95)
+            if (nd_white < 0.95 && c[2] > minL)
                 c[2] -= 1
+            // Clamp to maintain monotonicity
+            c[2] = Math.max(minL, Math.min(maxL, c[2]))
             // luminance change, max chroma should also change
             c[1] = gamutMappingHCL(c[0], 100, c[2])
 
@@ -72,12 +94,30 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
             if (!has_name) {
                 for (let i = 0; i < 30; i++) {
                     for (let k = 0; k < 50; k++) {
-                        if (Math.abs(90 - c[2]) < Math.abs(c[2] - 10)) {
-                            hcl = d3.hcl(c[0], c[1] - k, c[2] - i)
+                        // Maintain arch shape when searching for named colors
+                        let peak = Math.floor((pal.length - 1) / 2)
+                        let minL = 10, maxL = 95
+                        
+                        if (idx < peak) {
+                            minL = (idx > 0) ? pal[idx - 1][2] + 1 : 10
+                            maxL = pal[idx + 1][2] - 1
+                        } else if (idx > peak) {
+                            maxL = pal[idx - 1][2] - 1
+                            minL = (idx < pal.length - 1) ? pal[idx + 1][2] + 1 : 10
+                        } else { // idx == peak
+                            let left = (idx > 0) ? pal[idx - 1][2] : 10
+                            let right = (idx < pal.length - 1) ? pal[idx + 1][2] : 10
+                            minL = Math.max(left, right) + 1
+                        }
+                        let searchL = c[2]
+                        
+                        if (Math.abs(maxL - c[2]) < Math.abs(c[2] - minL)) {
+                            searchL = Math.max(minL, c[2] - i)
                         }
                         else {
-                            hcl = d3.hcl(c[0], c[1] - k, c[2] + i)
+                            searchL = Math.min(maxL, c[2] + i)
                         }
+                        hcl = d3.hcl(c[0], c[1] - k, searchL)
                         name = getColorName(hcl).slice(0, 3)
                         has_name = name.every(item => item != undefined && item != 'grey')
                         if (has_name) {
@@ -291,93 +331,184 @@ function resampleControlColors(palette) {
     return colormap
 }
 
+/**
+ * New scoring function based on cluster allocation, perceptual uniformity, and color-name constraints.
+ * The colormap is treated as a continuous curve c(u) where u ∈ [0, 1].
+ * 
+ * @param {Array} palette - Control points in HCL space [[h, c, l], ...]
+ * @returns {number} - Score (lower is better, this is a LOSS function)
+ */
 function getPaletteScore(palette) {
-
-    // whether resampling the control points? to do~
-    let palette_lab = []
-    for (let i = 0; i < palette.length; i++) {
-        palette_lab.push(color2Lab(palette[i]))
+    // Get GMM model from current data
+    const dataObj = data_arr[current_data_id];
+    if (!dataObj || !dataObj.gmmModel) {
+        console.warn("GMM model not available, using fallback scoring");
+        return 0;
     }
-
-    // average contrast sensitivity
-    let average_contrast_sen = 0
-    // minimum name difference
-    let min_name_diff = Number.MAX_SAFE_INTEGER
-    for (let i = 0; i < palette.length; i++) {
-        for (let j = i + 1; j < palette.length; j++) {
-            let cs = calcContrastSensitivity(palette_lab, i, j),
-                nd = getNameDifference(palette_lab[i], palette_lab[j])
-            average_contrast_sen += cs
-            min_name_diff = (min_name_diff > nd) ? nd : min_name_diff
-        }
-    }
-    average_contrast_sen /= (palette.length * (palette.length - 1) / 2)
-
-    // Smoothness: Calculate minimum color difference of 256 resampled points
-    let min_color_diff = 0;
-    try {
-        let numSamples = 256;
-        let samples = [];
-        
-        for (let k = 0; k < numSamples; k++) {
-            let t_total = k / (numSamples - 1); 
-            
-            // Find segment index
-            let segmentIndex = Math.floor(t_total * (palette.length - 1));
-            if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
-            
-            let segmentLength = 1 / (palette.length - 1);
-            let t = (t_total - segmentIndex * segmentLength) / segmentLength;
-            
-            let c1 = palette[segmentIndex]; // [h, c, l]
-            let c2 = palette[segmentIndex + 1];
-            
-            let h1 = c1[0], h2 = c2[0];
-            let diff = h2 - h1;
-            // Shortest path interpolation for hue
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
-            
-            let h = (h1 + diff * t + 360) % 360;
-            let c = c1[1] + (c2[1] - c1[1]) * t;
-            let l = c1[2] + (c2[2] - c1[2]) * t;
-            
-            // Convert to Lab
-            samples.push(d3.lab(d3.hcl(h, c, l)));
-        }
-        
-        let minDeltaE = Number.MAX_VALUE;
-        for (let k = 0; k < samples.length - 1; k++) {
-            // Calculate color difference using d3_ciede2000
-            let deltaE;
-            if (typeof d3_ciede2000 === 'function') {
-                deltaE = d3_ciede2000(samples[k], samples[k+1]);
-            } else {
-                // Fallback to Euclidean
-                let dL = samples[k].l - samples[k+1].l;
-                let da = samples[k].a - samples[k+1].a;
-                let db = samples[k].b - samples[k+1].b;
-                deltaE = Math.sqrt(dL*dL + da*da + db*db);
-            }
-            
-            if (deltaE < minDeltaE) {
-                minDeltaE = deltaE;
-            }
-        }
-        min_color_diff = minDeltaE;
-    } catch (e) {
-        console.warn("Error in smoothness calculation:", e);
-    }
-
-    // weight for smoothness
-    let weight_smooth = 0.2
-
-    // Total Score = (Contrast) + (Name Diff) + (Smoothness Reward)
-    // We want to MAXIMIZE the minimum color difference (to ensure uniformity/smoothness)
-   // let total_score = 0.003 * average_contrast_sen + min_name_diff + weight_smooth * min_color_diff
-    let total_score =  min_color_diff
     
-    return total_score
+    const gmmModel = dataObj.gmmModel;
+    const K = gmmModel.nComponents;
+    const pi_k = gmmModel.weights;  // Cluster weights (sum to 1)
+    
+    // Dense sampling parameter
+    const R = 512;  // Number of dense samples along the curve
+    
+    // 1. Dense sampling along the colormap curve
+    let samples = [];  // {u, lab}
+    for (let i = 0; i < R; i++) {
+        let u = i / (R - 1);
+        
+        // Interpolate color at u
+        let segmentIndex = Math.floor(u * (palette.length - 1));
+        if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 1;
+        
+        let localU = (u * (palette.length - 1)) - segmentIndex;
+        
+        let c1 = palette[segmentIndex];
+        let c2 = palette[Math.min(segmentIndex + 1, palette.length - 1)];
+        
+        // HCL interpolation (shortest hue path)
+        let h1 = c1[0], h2 = c2[0];
+        let diff = h2 - h1;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        
+        let h = (h1 + diff * localU + 360) % 360;
+        let c = c1[1] + (c2[1] - c1[1]) * localU;
+        let l = c1[2] + (c2[2] - c1[2]) * localU;
+        
+        let lab = d3.lab(d3.hcl(h, c, l));
+        samples.push({u: u, lab: lab});
+    }
+    
+    // Helper: Perceptual distance in Lab space (CIEDE2000 if available, else Euclidean)
+    function perceptualDist(lab1, lab2) {
+        if (typeof d3_ciede2000 === 'function') {
+            return d3_ciede2000(lab1, lab2);
+        }
+        let dL = lab1.L - lab2.L;
+        let da = lab1.a - lab2.a;
+        let db = lab1.b - lab2.b;
+        return Math.sqrt(dL*dL + da*da + db*db);
+    }
+    
+    // 2. Compute arc-length density
+    let d_i = [];  // Arc-length between adjacent samples
+    let S_total = 0;
+    for (let i = 0; i < R - 1; i++) {
+        let dist = perceptualDist(samples[i].lab, samples[i + 1].lab);
+        d_i.push(dist);
+        S_total += dist;
+    }
+    
+    // 3. Cluster allocation term (L_alloc)
+    // Map cluster means to u coordinates via global CDF
+    const extent = dataObj.extent;
+    let U_bounds = [0];  // U_0 = 0
+    for (let k = 0; k < K; k++) {
+        let cumSum = 0;
+        for (let j = 0; j <= k; j++) {
+            cumSum += pi_k[j];
+        }
+        U_bounds.push(cumSum);
+    }
+    
+    // Compute actual arc-length allocated to each cluster
+    let S_k = new Array(K).fill(0);
+    for (let i = 0; i < R - 1; i++) {
+        let u_i = samples[i].u;
+        // Find which cluster this sample belongs to
+        for (let k = 0; k < K; k++) {
+            if (u_i >= U_bounds[k] && u_i < U_bounds[k + 1]) {
+                S_k[k] += d_i[i];
+                break;
+            }
+        }
+    }
+    
+    // Compute allocation loss
+    let L_alloc = 0;
+    for (let k = 0; k < K; k++) {
+        let pi_hat_k = S_k[k] / S_total;
+        L_alloc += Math.pow(pi_hat_k - pi_k[k], 2);
+    }
+    
+    // 4. Global perceptual uniformity term (L_uniform)
+    // Compute arc-length density s_i = d_i / delta_u
+    let delta_u = 1 / (R - 1);
+    let s_i = d_i.map(d => d / delta_u);
+    let s_bar = s_i.reduce((sum, s) => sum + s, 0) / s_i.length;
+    
+    let variance_s = 0;
+    for (let i = 0; i < s_i.length; i++) {
+        variance_s += Math.pow(s_i[i] - s_bar, 2);
+    }
+    let L_uniform = (1 / Math.max(s_bar, 1e-10)) * Math.sqrt(variance_s / s_i.length);
+    
+    // 5. Color-name constraints
+    // 5a. Compute representative colors (CDF median) for each cluster
+    let rep_colors = [];
+    for (let k = 0; k < K; k++) {
+        // Use cluster mean mapped to u-space
+        let clusterMean = gmmModel.means[k];
+        let u_rep = (clusterMean - extent[0]) / (extent[1] - extent[0]);
+        u_rep = Math.max(0, Math.min(1, u_rep));
+        
+        // Find corresponding sample
+        let repIndex = Math.round(u_rep * (R - 1));
+        rep_colors.push(samples[repIndex].lab);
+    }
+    
+    // 5b. Intra-cluster semantic consistency (L_name_in)
+    let L_name_in = 0;
+    for (let k = 0; k < K; k++) {
+        let clusterSamples = [];
+        for (let i = 0; i < R; i++) {
+            let u_i = samples[i].u;
+            if (u_i >= U_bounds[k] && u_i < U_bounds[k + 1]) {
+                clusterSamples.push(samples[i].lab);
+            }
+        }
+        
+        if (clusterSamples.length > 0) {
+            let totalDist = 0;
+            for (let lab of clusterSamples) {
+                totalDist += getNameDifference(lab, rep_colors[k]);
+            }
+            L_name_in += totalDist / clusterSamples.length;
+        }
+    }
+    
+    // 5c. Inter-cluster semantic separability (R_name_between)
+    let R_name_between = 0;
+    for (let k = 0; k < K - 1; k++) {
+        R_name_between += getNameDifference(rep_colors[k], rep_colors[k + 1]);
+    }
+    
+    // 6. Final loss function
+    const lambda_alloc = 10.0;
+    const lambda_uniform = 1.0;
+    const lambda_in = 0.5;
+    const lambda_bt = 2.0;
+    
+    let totalLoss = lambda_alloc * L_alloc 
+                  + lambda_uniform * L_uniform 
+                  + lambda_in * L_name_in 
+                  - lambda_bt * R_name_between;
+    
+    // For debugging
+    if (Math.random() < 0.01) {  // Log occasionally
+        console.log("Scoring:", {
+            L_alloc: L_alloc.toFixed(4),
+            L_uniform: L_uniform.toFixed(4),
+            L_name_in: L_name_in.toFixed(4),
+            R_name_between: R_name_between.toFixed(4),
+            totalLoss: totalLoss.toFixed(4)
+        });
+    }
+    
+    // Return NEGATIVE loss (since optimizer maximizes score)
+    return -totalLoss;
 }
 
 function getPaletteScoreResampled(palette) {

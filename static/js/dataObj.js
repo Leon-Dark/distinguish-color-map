@@ -28,7 +28,24 @@ class DataObj {
                 document.body.style.pointerEvents = 'auto'; // 恢复页面点击
                 console.log(responseData);
                 this.controlPoints = responseData['received_array'];
+                this.gmmModel = responseData['gmmModel'];  // Store GMM model
+                this.gmmInfo = responseData['GMM'];  // Store GMM metadata
                 
+                // FORCE UNIFORM DISTRIBUTION (User request)
+                // Override the GMM means with uniform points across the extent
+                let min = this.extent[0];
+                let max = this.extent[1];
+                let count = this.controlPoints.length;
+                let uniformPoints = [];
+                if (count < 2) {
+                    uniformPoints = [min];
+                } else {
+                    for (let i = 0; i < count; i++) {
+                        uniformPoints.push(min + (max - min) * i / (count - 1));
+                    }
+                }
+                this.controlPoints = uniformPoints;
+
                 // regenerate control colors
                 let control_colors = [];
                 for (let i = 0; i < this.controlPoints.length; i++) {
@@ -36,8 +53,9 @@ class DataObj {
                 }
                 
                 this.controlColors = control_colors;
-                // 保存初始状态用于对比
+                // 保存初始状态用于对比（包括GMM控制点）
                 this.initialControlColors = JSON.parse(JSON.stringify(control_colors));
+                this.initialControlPoints = this.controlPoints.slice(); // 保存GMM控制点
                 
                 this.colormap = this.getColormapArray();
                 console.log(this);

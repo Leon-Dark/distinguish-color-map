@@ -349,12 +349,16 @@ function renderLab3D(dataObj, containerSelector = "#lab3d-container", options = 
             // 触发全局重绘（如果是主视图，重绘所有；如果是子视图，也重绘所有以保持同步）
             if (options.onRotate) {
                 options.onRotate();
-            } else {
+            } else if (!options.disableSync) {
+                // 只在未禁用同步时才执行默认同步行为
                 renderLab3D(dataObj); // 默认行为
                 // 同时也更新对比视图
                 if (typeof updateFullComparison === 'function') {
                     updateFullComparison(dataObj);
                 }
+            } else {
+                // 禁用同步：只重绘当前视图
+                renderLab3D(dataObj, containerSelector, options);
             }
         }));
     
@@ -442,7 +446,8 @@ function renderLab3D(dataObj, containerSelector = "#lab3d-container", options = 
     if (currentComparisonColormap !== 'none' && typeof BUILTIN_COLORMAPS !== 'undefined') {
         let comparisonMap = BUILTIN_COLORMAPS[currentComparisonColormap];
         if (comparisonMap) {
-            let comparisonPoints = getColormapArrayLabFromHCL(comparisonMap.controlColors);
+            let result = getLabPointsFromHCL_Render(comparisonMap.controlColors);
+            let comparisonPoints = result.labPoints;
             let step = Math.max(1, Math.floor(comparisonPoints.length / 200));
             for (let i = 0; i < comparisonPoints.length - step; i += step) {
                 let p1 = project(comparisonPoints[i][0], comparisonPoints[i][1], comparisonPoints[i][2]);
@@ -464,7 +469,8 @@ function renderLab3D(dataObj, containerSelector = "#lab3d-container", options = 
     if (dataObj) {
         // 3. 初始轨迹 (虚线) - 仅在开关启用时显示
         if (showInitialTrajectory && dataObj.initialControlColors) {
-            let initPoints = dataObj.getColormapArrayLab(dataObj.initialControlColors);
+            let result = getLabPointsFromHCL_Render(dataObj.initialControlColors);
+            let initPoints = result.labPoints;
             // 降采样以提高性能
             let step = Math.max(1, Math.floor(initPoints.length / 200));
             for (let i = 0; i < initPoints.length - step; i += step) {
@@ -489,12 +495,20 @@ function renderLab3D(dataObj, containerSelector = "#lab3d-container", options = 
             let colormapHCL;
 
             if (dataObj.getColormapArrayLab) {
+                // 如果是 DataObj 实例，使用其方法（注意：这里保持原样，假设 DataObj 内部实现没问题）
+                // 但如果 DataObj 内部依赖 getColormapArrayLabFromHCL，可能需要检查 dataObj.js
+                // 暂时假设 dataObj.getColormapArrayLab 是独立的或已绑定
                 currentPoints = dataObj.getColormapArrayLab();
                 colormapHCL = dataObj.colormap;
             } else if (dataObj.labPoints) {
-                // 这是一个 mock DataObj
+                // 这是一个 mock DataObj (Preset 卡片使用)
                 currentPoints = dataObj.labPoints;
                 colormapHCL = dataObj.hclPoints; // 如果有的话
+            } else if (dataObj.controlColors && !dataObj.getColormapArrayLab) {
+                // 回退逻辑：如果传入的是普通对象且有 controlColors
+                let res = getLabPointsFromHCL_Render(dataObj.controlColors);
+                currentPoints = res.labPoints;
+                colormapHCL = res.hclPoints;
             }
 
             if (currentPoints) {
@@ -1238,35 +1252,27 @@ function showTrend(data, div, text, x = 0, y = 1) {
 }
 
 function renderColormapPixels(dataObj, canvas) {
-    if (!canvas) return;
+    if (!canvas || !dataObj.colormap) return;
     let context = canvas.getContext('2d');
     let width = canvas.width;
     let height = canvas.height;
-    
-    // traverse the image data
-    let step_num = 100
-    let colormap = []
-    for (let i = 0; i < dataObj.controlColors.length - 1; i++) {
-        for (let j = 0; j < step_num; j++) {
-            let hcl = [0, 0, 0]
-            if (dataObj.controlColors[i + 1][0] < dataObj.controlColors[i][0])
-                hcl[0] = (dataObj.controlColors[i][0] + (dataObj.controlColors[i + 1][0] - dataObj.controlColors[i][0]) * j / step_num) % 360
-            else
-                hcl[0] = (dataObj.controlColors[i][0] + (dataObj.controlColors[i + 1][0] - dataObj.controlColors[i][0] - 360) * j / step_num + 360) % 360
-            hcl[1] = dataObj.controlColors[i][1] + (dataObj.controlColors[i + 1][1] - dataObj.controlColors[i][1]) * j / step_num
-            hcl[2] = dataObj.controlColors[i][2] + (dataObj.controlColors[i + 1][2] - dataObj.controlColors[i][2]) * j / step_num
-            colormap.push(hcl)
-        }
-    }
     
     // 使用 ImageData 优化渲染
     let imageData = context.createImageData(width, height);
     let pixels = imageData.data;
     
+    // 如果 colormap 为空，避免崩溃
+    if (dataObj.colormap.length === 0) return;
+
     for (let x = 0; x < width; x++) {
-        let jj = Math.floor(x / (width - 1) * (colormap.length - 1))
-        let hcl = colormap[jj]
-        let rgb = color2rgb(hcl)
+        // 将 x 映射到 colormap 数组的索引
+        let jj = Math.floor(x / (width - 1) * (dataObj.colormap.length - 1));
+        let hcl = dataObj.colormap[jj];
+        
+        // 确保 hcl 存在
+        if (!hcl) continue;
+
+        let rgb = color2rgb(hcl);
         
         let r = Math.round(rgb[0]);
         let g = Math.round(rgb[1]);
@@ -1302,6 +1308,15 @@ function drawOriginalColormap(dataObj) {
     // 获取容器实际宽度
     let containerWidth = container.node().getBoundingClientRect().width;
     // 减去 padding (左右各 12px，这里留 30px 余量)
+    
+    // 确保全局变量存在（防止 globalVariables.js 加载失败）
+    if (typeof colormap_width === 'undefined') {
+        window.colormap_width = 360;
+    }
+    if (typeof colormap_height === 'undefined') {
+        window.colormap_height = 45;
+    }
+    
     colormap_width = containerWidth > 0 ? containerWidth : 360; // 防止宽度为0
     let width = colormap_width, height = colormap_height
 
@@ -1392,9 +1407,19 @@ function drawOriginalColormap(dataObj) {
     }
 
 
+    let range = controlPoints[controlPoints.length - 1] - controlPoints[0];
+
     for (let i = 0; i < controlColors.length; i++) {
-        // 移除 +10 偏移，使控制点中心对齐色带边缘
-        let x = width * i / (controlColors.length - 1)
+        // Calculate position based on value proportion, not index
+        let val = controlPoints[i];
+        let x = 0;
+        if (range !== 0) {
+            x = width * (val - controlPoints[0]) / range;
+        } else {
+            // Fallback for zero range (shouldn't happen for valid data)
+            x = width * i / (controlColors.length - 1);
+        }
+
         svg.append("line")
             .style("stroke", "black").style("stroke-width", 1)
             .attr("x1", x)
@@ -1535,9 +1560,9 @@ function drawHistogramWithMultipleGaussians(dataArray, gaussianParamsArray) {
 }
 
 /**
- * 从HCL控制点生成Lab数组（用于对比colormap）
+ * 从HCL控制点生成Lab数组（用于对比colormap）- Renamed to avoid conflict
  */
-function getColormapArrayLabFromHCL(controlColors) {
+function getLabPointsFromHCL_Render(controlColors) {
     let colormap = [];
     // 使用足够多的点来保证平滑
     let totalSteps = 200; 
@@ -1592,69 +1617,278 @@ function updateComparisonColormap(value) {
 }
 
 
+// 全局标记：对比卡片是否已初始化
+let comparisonCardsInitialized = false;
+
 /**
- * 更新完整的对比模块（6个视图 + 指标）
+ * 更新完整的对比模块（智能更新：首次创建所有卡片，后续仅更新 Optimized）
  */
 function updateFullComparison(optimizedData) {
     if (d3.select("#full-comparison-module").empty()) return;
-
-    renderLab3D(optimizedData, "#comp-lab3d-optimized", { 
-        background: "#fdfaff",
-        noBackground: true,
-        onRotate: () => updateFullComparison(optimizedData),
-        showColorbar: true
-    });
     
-    // 计算并显示优化后的指标
-    if (optimizedData.colormap && optimizedData.controlColors) {
-        let optMetrics = calculateMetrics(optimizedData.colormap, optimizedData.controlColors);
-        updateMetricPanel("optimized", optMetrics);
+    let gridContainer = d3.select('#comparison-grid-container');
+    if (gridContainer.empty()) return;
+
+    // 首次调用：创建所有卡片
+    if (!comparisonCardsInitialized) {
+        initializeComparisonCards(gridContainer, optimizedData);
+        comparisonCardsInitialized = true;
+    } else {
+        // 后续调用：只更新 Optimized 卡片
+        updateOptimizedCard(optimizedData);
     }
     
-    // Slot 1 不需要点击事件来 "Restore"，因为它本身就是 Current
-    // 如果需要 Restore 功能，应该另设按钮
+    // 更新 Current 标记
+    updateCurrentBadge(optimizedData);
+}
 
-    // 2. 渲染其他内置 Colormap
-    const comparisons = [
-        { id: 'rainbow', name: 'Rainbow' },
-        { id: 'thermal', name: 'Thermal' },
-        { id: 'viridis', name: 'Viridis' },
-        { id: 'jet', name: 'Jet' },
-        { id: 'plasma', name: 'Plasma' }
-    ];
-
-    comparisons.forEach(comp => {
-        if (typeof BUILTIN_COLORMAPS === 'undefined') return;
+/**
+ * 首次初始化所有对比卡片（Optimized + Presets）
+ */
+function initializeComparisonCards(gridContainer, optimizedData) {
+    gridContainer.selectAll('*').remove();
+    
+    // 1. 创建 Optimized 卡片
+    let optimizedCard = gridContainer.append('div').attr('data-card-type', 'optimized');
+    optimizedCard.html(`
+        <div class="colormap-card" data-colormap-id="optimized" style="border: 2px solid #764ba2; border-radius: 8px; overflow: hidden; box-shadow: 0 0 15px rgba(118, 75, 162, 0.2); cursor: pointer; transition: all 0.2s;">
+            <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                <span>✨ Optimized Colormap</span>
+                <span class="current-badge" style="background: rgba(255,255,255,0.3); padding: 2px 8px; border-radius: 10px; font-size: 0.8em; display: none;">Current</span>
+            </div>
+            <div class="card-body">
+                <div id="main-comp-lab3d-optimized" class="lab3d-view" style="height: 300px; width: 100%;"></div>
+            </div>
+        </div>
+        <div class="metrics-panel" id="metrics-optimized" style="padding: 15px; background: #fdfaff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+            <!-- Metrics will be populated -->
+        </div>
+    `);
+    
+    // 添加点击事件
+    optimizedCard.select('.colormap-card').on('click', function() {
+        applyColormapToMain('optimized');
+    });
+    
+    // 渲染 Optimized 内容
+    updateOptimizedCard(optimizedData);
+    
+    // 2. 创建所有 Preset 卡片
+    let comparisonIds = [];
+    if (typeof getAllColormapIds === 'function') {
+        comparisonIds = getAllColormapIds();
+    } else if (typeof BUILTIN_COLORMAPS !== 'undefined') {
+        comparisonIds = Object.keys(BUILTIN_COLORMAPS);
+    } else {
+        comparisonIds = ['viridis', 'turbo', 'plasma', 'thermal', 'rainbow', 'spectral', 'jet'];
+    }
+    
+    comparisonIds.forEach(id => {
+        if (typeof BUILTIN_COLORMAPS === 'undefined' || !BUILTIN_COLORMAPS[id]) return;
         
-        let mapDef = BUILTIN_COLORMAPS[comp.id];
-        if (!mapDef) return;
-
-        // 构造 mock 数据对象
-        let mockData = getColormapArrayLabFromHCL(mapDef.controlColors);
-        mockData.controlColors = mapDef.controlColors;
+        let mapDef = BUILTIN_COLORMAPS[id];
+        let card = gridContainer.append('div').attr('data-card-type', 'preset');
         
-        // 渲染
-        renderLab3D(mockData, "#comp-lab3d-" + comp.id, {
+        card.html(`
+            <div class="colormap-card" data-colormap-id="${id}" style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s;">
+                <div class="card-header" style="background: #f8f9fa; padding: 12px; font-weight: 600; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                    <span>${mapDef.name}</span>
+                    <span class="current-badge" style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; display: none;">Current</span>
+                </div>
+                <div class="card-body">
+                    <div id="main-comp-lab3d-${id}" class="lab3d-view" style="height: 300px; width: 100%;"></div>
+                </div>
+            </div>
+            <div class="metrics-panel" id="metrics-${id}" style="padding: 15px; background: #fff; border: 1px solid #eee; border-radius: 8px; margin-top: 10px;">
+                <!-- Metrics will be populated -->
+            </div>
+        `);
+        
+        // 添加点击事件
+        card.select('.colormap-card').on('click', function() {
+            console.log('点击了 Preset 卡片:', id);
+            applyColormapToMain(id);
+        });
+        
+        // 构造数据并渲染
+        let result = getLabPointsFromHCL_Render(mapDef.controlColors);
+        let mockData = {
+            labPoints: result.labPoints,      // 正确解构
+            hclPoints: result.hclPoints,      // 使用生成的 HCL 点
+            controlColors: mapDef.controlColors,
+            colormap: result.hclPoints        // renderLab3D 需要 colormap 字段用于显示真实颜色
+        };
+        
+        renderLab3D(mockData, "#main-comp-lab3d-" + id, {
             background: "#fff",
             noBackground: true,
             disableRealColor: false,
-            onRotate: () => updateFullComparison(optimizedData),
+            disableSync: true,
             showColorbar: true,
             colorbarColors: mapDef.controlColors
         });
-
-        // 计算指标
-        let metrics = calculateMetrics(mockData.hclPoints, mapDef.controlColors);
-        updateMetricPanel(comp.id, metrics);
-
-        // 添加点击交互：应用该 Colormap
-        let container = d3.select("#comp-lab3d-" + comp.id);
-        let card = d3.select(container.node().closest('.colormap-card'));
         
-        card.style("cursor", "default")
-            .attr("title", null)
-            .on("click", null);
+        // 计算并显示指标
+        let metrics = calculateMetrics(mockData.hclPoints, mapDef.controlColors);
+        updateMetricPanel(id, metrics);
     });
+}
+
+/**
+ * 只更新 Optimized 卡片的内容（Generate 后调用）
+ */
+function updateOptimizedCard(optimizedData) {
+    // 使用 initialControlColors（保留 GMM 结果）作为基准
+    let colorsToRender = optimizedData.initialControlColors || optimizedData.controlColors;
+    
+    // 构建一个独立的 mockData 对象，避免引用 live dataObj (它可能已经被修改为 Preset)
+    // 这样能确保 Optimized 卡片永远显示优化后的结果，而不是当前主视图的结果
+    let result = getLabPointsFromHCL_Render(colorsToRender);
+    let mockData = {
+        labPoints: result.labPoints,
+        hclPoints: result.hclPoints,
+        controlColors: colorsToRender,
+        colormap: result.hclPoints,
+        extent: optimizedData.extent // 保留 extent 以防万一
+    };
+
+    renderLab3D(mockData, "#main-comp-lab3d-optimized", { 
+        background: "#fdfaff",
+        noBackground: true,
+        disableSync: true,
+        showColorbar: true,
+        colorbarColors: colorsToRender
+    });
+    
+    if (colorsToRender) {
+        let optMetrics = calculateMetrics(mockData.colormap, colorsToRender);
+        updateMetricPanel("optimized", optMetrics);
+    }
+}
+
+/**
+ * 更新 Current 标记（高亮当前正在使用的 colormap）
+ */
+function updateCurrentBadge(currentData) {
+    // 隐藏所有 badge
+    d3.selectAll('.current-badge').style('display', 'none');
+    d3.selectAll('.colormap-card').style('border-width', '1px').style('box-shadow', 'none');
+    
+    // 重置 Optimized 卡片边框
+    d3.select('.colormap-card[data-colormap-id="optimized"]')
+        .style('border', '2px solid #764ba2')
+        .style('box-shadow', '0 0 15px rgba(118, 75, 162, 0.2)');
+    
+    if (!currentData || !currentData.controlColors) return;
+    
+    // 检查是否匹配 Optimized
+    if (currentData.initialControlColors && colorsMatch(currentData.controlColors, currentData.initialControlColors)) {
+        d3.select('.colormap-card[data-colormap-id="optimized"] .current-badge').style('display', 'inline-block');
+        d3.select('.colormap-card[data-colormap-id="optimized"]')
+            .style('border', '3px solid #4CAF50')
+            .style('box-shadow', '0 0 20px rgba(76, 175, 80, 0.4)');
+        return;
+    }
+    
+    // 检查是否匹配某个 Preset
+    if (typeof BUILTIN_COLORMAPS !== 'undefined') {
+        for (let id in BUILTIN_COLORMAPS) {
+            if (colorsMatch(currentData.controlColors, BUILTIN_COLORMAPS[id].controlColors)) {
+                d3.select(`.colormap-card[data-colormap-id="${id}"] .current-badge`).style('display', 'inline-block');
+                d3.select(`.colormap-card[data-colormap-id="${id}"]`)
+                    .style('border', '3px solid #4CAF50')
+                    .style('box-shadow', '0 0 20px rgba(76, 175, 80, 0.4)');
+                break;
+            }
+        }
+    }
+}
+
+/**
+ * 比较两个颜色数组是否相同
+ */
+function colorsMatch(colors1, colors2) {
+    if (!colors1 || !colors2 || colors1.length !== colors2.length) return false;
+    for (let i = 0; i < colors1.length; i++) {
+        if (Math.abs(colors1[i][0] - colors2[i][0]) > 1 ||
+            Math.abs(colors1[i][1] - colors2[i][1]) > 1 ||
+            Math.abs(colors1[i][2] - colors2[i][2]) > 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * 应用选中的 colormap 到主视图（核心交互逻辑）
+ */
+function applyColormapToMain(colormapId) {
+    if (typeof current_data_id === 'undefined' || typeof data_arr === 'undefined' || !data_arr[current_data_id]) return;
+    
+    let dataObj = data_arr[current_data_id];
+    let newControlColors = null;
+    let newControlPoints = null;
+    
+    if (colormapId === 'optimized') {
+        // 恢复 GMM 优化的结果（包括控制点和颜色）
+        if (dataObj.initialControlColors) {
+            newControlColors = JSON.parse(JSON.stringify(dataObj.initialControlColors));
+            
+            // 强制均匀分布 (User request: "都均匀分布吧")
+            // 忽略 dataObj.initialControlPoints 中的非均匀 GMM 结果
+            let min = dataObj.extent[0];
+            let max = dataObj.extent[1];
+            let count = newControlColors.length;
+            newControlPoints = [];
+            if (count < 2) {
+                newControlPoints = [min];
+            } else {
+                for (let i = 0; i < count; i++) {
+                    newControlPoints.push(min + (max - min) * i / (count - 1));
+                }
+            }
+        }
+    } else if (typeof BUILTIN_COLORMAPS !== 'undefined' && BUILTIN_COLORMAPS[colormapId]) {
+        // 应用 Preset：颜色来自定义，控制点均匀分布
+        newControlColors = BUILTIN_COLORMAPS[colormapId].controlColors.map(c => c.slice());
+        
+        // 根据新颜色数量均匀分配控制点
+        let min = dataObj.extent[0];
+        let max = dataObj.extent[1];
+        let count = newControlColors.length;
+        newControlPoints = [];
+        if (count < 2) {
+            newControlPoints = [min];
+        } else {
+            for (let i = 0; i < count; i++) {
+                newControlPoints.push(min + (max - min) * i / (count - 1));
+            }
+        }
+    }
+    
+    if (newControlColors) {
+        // 更新数据对象
+        if (newControlPoints) {
+            dataObj.controlPoints = newControlPoints;
+        }
+        dataObj.setControlColors(newControlColors);
+        
+        // 重绘所有主视图
+        if (typeof renderCanvas === 'function') renderCanvas(dataObj);
+        if (typeof drawColormap === 'function') drawColormap(dataObj);
+        if (typeof drawControlPoints === 'function') drawControlPoints(dataObj);
+        if (typeof drawColorWheel === 'function') drawColorWheel(dataObj);
+        
+        // 更新 Current 标记
+        updateCurrentBadge(dataObj);
+        
+        // 视觉反馈
+        d3.selectAll('.colormap-card').style('opacity', '0.7');
+        d3.select(`.colormap-card[data-colormap-id="${colormapId}"]`).style('opacity', '1');
+        setTimeout(() => {
+            d3.selectAll('.colormap-card').style('opacity', '1');
+        }, 300);
+    }
 }
 
 /**
@@ -1726,17 +1960,55 @@ function calculateMetrics(colormapHCL, controlColors) {
 }
 
 function updateMetricPanel(id, metrics) {
-    const formatVal = (val, digits = 2) => (isFinite(val) ? val.toFixed(digits) : '--');
-    d3.select(`#smoothness-${id}`).text(formatVal(metrics.smoothness, 4));
-    d3.select(`#cie-${id}`).text(formatVal(metrics.discriminatoryCie, 2));
-    d3.select(`#csens-${id}`).text(formatVal(metrics.contrastSensitivity, 2));
-    d3.select(`#hue-${id}`).text(formatVal(metrics.hue, 2));
-    d3.select(`#luminance-${id}`).text(formatVal(metrics.luminanceVariation, 2));
-    d3.select(`#chromatic-${id}`).text(formatVal(metrics.chromaticVariation, 2));
-    d3.select(`#lablen-${id}`).text(formatVal(metrics.labLength, 2));
-    d3.select(`#namevar-${id}`).text(formatVal(metrics.nameVariation, 2));
-    const catText = (isFinite(metrics.categorization))
+    // 获取或创建metrics容器
+    let panel = d3.select(`#metrics-${id}`);
+    if (panel.empty()) {
+        console.warn(`Metrics panel for ${id} not found`);
+        return;
+    }
+    
+    // 清空并重新填充（使用computeCardMetrics返回的正确字段名）
+    const formatVal = (val) => (val !== undefined && isFinite(val) ? val.toFixed(2) : '--');
+    const categorizationText = (metrics.categorization !== undefined && isFinite(metrics.categorization))
         ? `${metrics.categorization.toFixed(2)} (K=${metrics.categoryCount || 0})`
         : '--';
-    d3.select(`#categorization-${id}`).text(catText);
+    
+    panel.html(`
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">min_color_diff</span>
+            <span class="metric-value" id="smoothness-${id}" style="font-weight: ${id === 'optimized' ? 'bold' : 'normal'}; color: ${id === 'optimized' ? '#2196F3' : 'inherit'};">${formatVal(metrics.smoothness)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">CIE Discr.</span>
+            <span class="metric-value" id="cie-${id}">${formatVal(metrics.discriminatoryCie)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">Contrast Sens.</span>
+            <span class="metric-value" id="csens-${id}">${formatVal(metrics.contrastSensitivity)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">Hue Var.</span>
+            <span class="metric-value" id="hue-${id}">${formatVal(metrics.hue)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">Luminance Var.</span>
+            <span class="metric-value" id="luminance-${id}">${formatVal(metrics.luminanceVariation)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">Chromatic Var.</span>
+            <span class="metric-value" id="chromatic-${id}">${formatVal(metrics.chromaticVariation)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">LAB Length</span>
+            <span class="metric-value" id="lablen-${id}">${formatVal(metrics.labLength)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span class="metric-label" style="color: #666;">Name Variation</span>
+            <span class="metric-value" id="namevar-${id}">${formatVal(metrics.nameVariation)}</span>
+        </div>
+        <div class="metric-item" style="display: flex; justify-content: space-between;">
+            <span class="metric-label" style="color: #666;">Categorization</span>
+            <span class="metric-value" id="categorization-${id}">${categorizationText}</span>
+        </div>
+    `);
 }

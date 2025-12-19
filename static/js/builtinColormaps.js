@@ -44,7 +44,7 @@ function getFromPreset(presetName, sampleCount = 15) {
              c.h = (colors.length > 0) ? colors[colors.length-1][0] : 0;
         }
         colors.push([c.h, c.c, c.l]);
-    }
+    } 
     return colors;
 }
 
@@ -109,7 +109,7 @@ const BUILTIN_COLORMAPS = {
             [240, 100, 25], [210, 100, 40], [180, 80, 50], [150, 90, 60], [120, 85, 60], 
             [90, 90, 70], [60, 100, 80], [30, 100, 60], [0, 100, 50], [350, 100, 30]
         ],
-        category: "不推荐"
+        category: "传统"
     },
     
     plasma: {
@@ -130,15 +130,125 @@ const BUILTIN_COLORMAPS = {
         category: "单色调"
     },
     
-    hot: {
-        name: "Hot",
-        description: "热色调配色",
-        // metrics.js 有 'hot' (Black-Red-Yellow-White)
-        controlColors: getFromPreset('hot') || (typeof d3 !== 'undefined' && d3.interpolateWarm ? sampleFromD3(d3.interpolateWarm, 12) : [
-            [0, 0, 0], [0, 80, 25], [0, 90, 45], [60, 95, 70], [0, 0, 100]
+    
+    turbo: {
+        name: "Turbo",
+        description: "Google Turbo (改进的 Jet)",
+        // Turbo colormap by Google - RGB values at key positions
+        controlColors: (function() {
+            const rgbData = [
+                [48,18,59], [62,24,90], [72,40,120], [78,62,137], [80,85,145],
+                [79,107,143], [75,128,139], [68,148,133], [59,167,126], [50,184,121],
+                [43,199,119], [39,212,120], [40,223,123], [47,232,129], [61,239,139],
+                [80,244,153], [104,247,170], [132,249,189], [161,250,210], [190,249,231],
+                [220,246,247], [243,238,248], [252,224,228], [253,205,196], [251,183,161],
+                [247,159,123], [241,135,88], [232,110,61], [220,87,42], [206,67,32],
+                [190,50,27], [173,37,25], [155,27,24], [138,20,22], [122,16,20]
+            ];
+            
+            if (typeof d3 !== 'undefined') {
+                let colors = [];
+                rgbData.forEach(p => {
+                    const c = d3.hcl(d3.rgb(p[0], p[1], p[2]));
+                    if (isNaN(c.h)) c.h = (colors.length > 0) ? colors[colors.length-1][0] : 0;
+                    colors.push([c.h, c.c, c.l]);
+                });
+                return colors;
+            }
+            
+            // Fallback HCL approximation
+            return [
+                [285, 35, 15], [280, 45, 25], [270, 50, 35], [260, 50, 45], [250, 45, 55],
+                [235, 40, 60], [215, 45, 65], [195, 50, 70], [175, 55, 75], [155, 60, 80],
+                [140, 65, 85], [125, 70, 88], [110, 75, 90], [95, 80, 92], [80, 85, 94],
+                [65, 85, 95], [50, 85, 96], [40, 80, 96], [30, 75, 95], [20, 70, 93],
+                [15, 65, 90], [10, 60, 85], [5, 55, 78], [0, 50, 70], [355, 48, 60],
+                [350, 50, 50], [345, 55, 42], [340, 60, 35], [335, 65, 28], [330, 70, 22]
+            ];
+        })(),
+        category: "感知均匀"
+    },
+    
+    inferno: {
+        name: "Inferno",
+        description: "感知均匀 (Matplotlib)",
+        controlColors: getFromPreset('inferno') || (typeof d3 !== 'undefined' && d3.interpolateInferno ? sampleFromD3(d3.interpolateInferno, 12) : [
+            [270, 20, 5], [285, 40, 15], [300, 60, 25], [320, 75, 35], [340, 85, 45],
+            [10, 95, 55], [30, 100, 65], [50, 95, 75], [70, 85, 85], [80, 60, 92]
         ]),
+        category: "感知均匀"
+    },
+    
+    magma: {
+        name: "Magma",
+        description: "感知均匀 (Matplotlib)",
+        controlColors: getFromPreset('magma') || (typeof d3 !== 'undefined' && d3.interpolateMagma ? sampleFromD3(d3.interpolateMagma, 12) : [
+            [300, 20, 5], [310, 45, 15], [320, 65, 25], [330, 80, 35], [345, 90, 45],
+            [10, 95, 55], [30, 95, 65], [50, 90, 75], [70, 75, 85], [90, 50, 95]
+        ]),
+        category: "感知均匀"
+    },
+    
+    
+    warm: {
+        name: "Warm",
+        description: "暖色调渐变",
+        controlColors: typeof d3 !== 'undefined' && d3.interpolateWarm ? sampleFromD3(d3.interpolateWarm, 10) : [
+            [300, 50, 30], [330, 60, 40], [0, 70, 50], [30, 80, 60], [60, 90, 70], [90, 85, 80]
+        ],
         category: "单色调"
-    }
+    },
+    
+    cubehelix: {
+        name: "Cubehelix",
+        description: "螺旋色彩空间",
+        controlColors: typeof d3 !== 'undefined' && d3.interpolateCubehelixDefault ? sampleFromD3(d3.interpolateCubehelixDefault, 12) : [
+            [300, 40, 10], [280, 50, 25], [250, 55, 40], [210, 50, 55], [170, 40, 65],
+            [130, 35, 75], [90, 40, 80], [60, 50, 85], [40, 55, 88], [30, 45, 90]
+        ],
+        category: "传统"
+    },
+    
+    sinebow: {
+        name: "Sinebow",
+        description: "正弦彩虹配色",
+        controlColors: typeof d3 !== 'undefined' && d3.interpolateSinebow ? sampleFromD3(d3.interpolateSinebow, 12) : [
+            [0, 75, 50], [45, 80, 60], [90, 85, 70], [135, 80, 75], [180, 75, 70],
+            [225, 80, 60], [270, 85, 55], [315, 80, 50], [360, 75, 50]
+        ],
+        category: "传统"
+    },
+    
+    spectral: {
+        name: "Spectral",
+        description: "ColorBrewer 发散配色",
+        controlColors: typeof d3 !== 'undefined' && d3.interpolateSpectral ? sampleFromD3(d3.interpolateSpectral, 11) : [
+            [0, 80, 40], [20, 90, 55], [45, 95, 70], [70, 90, 82], [90, 75, 90],
+            [180, 10, 97], [240, 75, 90], [270, 90, 82], [290, 95, 70], [310, 90, 55], [340, 80, 40]
+        ],
+        category: "发散"
+    },
+    
+    rdbu: {
+        name: "RdBu",
+        description: "红-蓝发散 (ColorBrewer)",
+        controlColors: typeof d3 !== 'undefined' && d3.interpolateRdBu ? sampleFromD3(d3.interpolateRdBu, 11) : [
+            [10, 85, 35], [15, 90, 50], [20, 80, 65], [25, 60, 80], [0, 20, 92],
+            [0, 0, 97], [210, 20, 92], [220, 60, 80], [230, 80, 65], [240, 90, 50], [250, 85, 35]
+        ],
+        category: "发散"
+    },
+    
+    rdylgn: {
+        name: "RdYlGn",
+        description: "红-黄-绿发散 (ColorBrewer)",
+        controlColors: typeof d3 !== 'undefined' && d3.interpolateRdYlGn ? sampleFromD3(d3.interpolateRdYlGn, 11) : [
+            [0, 90, 40], [10, 95, 55], [40, 95, 70], [55, 85, 85], [70, 50, 95],
+            [90, 10, 97], [100, 50, 95], [120, 85, 85], [135, 95, 70], [145, 95, 55], [155, 90, 40]
+        ],
+        category: "发散"
+    },
+    
 };
 
 /**
@@ -160,4 +270,102 @@ function getBuiltinColormap(name) {
  */
 function getAllBuiltinColormaps() {
     return BUILTIN_COLORMAPS;
+}
+
+/**
+ * 获取按分类组织的 colormap 列表
+ * @returns {Array} 分类数组，每个元素包含 {category, colormaps}
+ */
+function getColormapsByCategory() {
+    // 定义分类顺序和中文名称
+    const categoryOrder = [
+        { key: "感知均匀", name: "感知均匀 (推荐)", icon: "✨" },
+        { key: "发散", name: "发散配色", icon: "🔄" },
+        { key: "单色调", name: "单色调", icon: "🎨" },
+        { key: "传统", name: "传统配色", icon: "🌈" }
+    ];
+    
+    // 每个分类内的推荐顺序
+    const orderWithinCategory = {
+        "感知均匀": ['viridis', 'plasma', 'inferno', 'magma', 'turbo'],
+        "发散": ['spectral', 'rdbu', 'rdylgn'],
+        "单色调": ['cool', 'warm'],
+        "传统": ['rainbow', 'thermal', 'cubehelix', 'sinebow','jet'],
+    };
+    
+    let result = [];
+    
+    categoryOrder.forEach(cat => {
+        let colormapsInCategory = [];
+        
+        // 按推荐顺序添加
+        if (orderWithinCategory[cat.key]) {
+            orderWithinCategory[cat.key].forEach(id => {
+                if (BUILTIN_COLORMAPS[id]) {
+                    colormapsInCategory.push({
+                        id: id,
+                        name: BUILTIN_COLORMAPS[id].name,
+                        description: BUILTIN_COLORMAPS[id].description,
+                        controlColors: BUILTIN_COLORMAPS[id].controlColors
+                    });
+                }
+            });
+        }
+        
+        // 添加未在推荐列表中的colormap
+        Object.keys(BUILTIN_COLORMAPS).forEach(id => {
+            if (BUILTIN_COLORMAPS[id].category === cat.key) {
+                let alreadyAdded = colormapsInCategory.find(c => c.id === id);
+                if (!alreadyAdded) {
+                    colormapsInCategory.push({
+                        id: id,
+                        name: BUILTIN_COLORMAPS[id].name,
+                        description: BUILTIN_COLORMAPS[id].description,
+                        controlColors: BUILTIN_COLORMAPS[id].controlColors
+                    });
+                }
+            }
+        });
+        
+        if (colormapsInCategory.length > 0) {
+            result.push({
+                category: cat.name,
+                icon: cat.icon,
+                colormaps: colormapsInCategory
+            });
+        }
+    });
+    
+    return result;
+}
+
+/**
+ * 获取推荐用于对比的 colormap 列表（精选）
+ * @returns {Array} colormap ID 数组
+ */
+function getRecommendedColormaps() {
+    return [
+        'viridis',   // 感知均匀代表
+        'turbo',     // 改进的Jet
+        'plasma',    // 另一个感知均匀
+        'thermal',   // 传统热力图
+        'rainbow',   // 经典彩虹
+        'spectral',  // 发散配色代表
+        'jet'        // 传统但常用
+    ];
+}
+
+/**
+ * 获取所有 colormap ID 列表（按分类排序）
+ * @returns {Array} colormap ID 数组
+ */
+function getAllColormapIds() {
+    let categories = getColormapsByCategory();
+    let allIds = [];
+    categories.forEach(cat => {
+        cat.colormaps.forEach(cm => {
+            allIds.push(cm.id);
+        });
+    });
+    return allIds;
 }

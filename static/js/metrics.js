@@ -106,70 +106,81 @@ function calcSmoothness(palette) {
 
 
 /**
- * Smoothness: Calculate minimum color difference of 256 resampled points
- * Logic adapted from optimizer.js
+ * Smoothness (Redefined): Calculate global minimum color difference of samples separated by JND=3
+ * Logic:
+ * 1. Sample the colormap path with a step size of CIEDE2000 = 3
+ * 2. Calculate the minimum CIEDE2000 distance between ALL pairs of sampled points (i != j)
+ * This metric detects color confusion (e.g. self-intersections or loops)
  * @param {array} palette Array of HCL control points [[h, c, l], ...]
  */
 function calcSmoothnessMinDiff(palette) {
     let min_color_diff = 0;
     try {
-        let numSamples = 256;
-        let samples = [];
-        
-        for (let k = 0; k < numSamples; k++) {
-            let t_total = k / (numSamples - 1); 
-            
-            // Find segment index
+        // 1. 生成高分辨率路径用于采样
+        let fineSamples = [];
+        let numFineSamples = 1000; // 足够密，保证插值精度
+        for (let k = 0; k < numFineSamples; k++) {
+            let t_total = k / (numFineSamples - 1); 
             let segmentIndex = Math.floor(t_total * (palette.length - 1));
             if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 2;
-            
             let segmentLength = 1 / (palette.length - 1);
             let t = (t_total - segmentIndex * segmentLength) / segmentLength;
             
-            let c1 = palette[segmentIndex]; // [h, c, l]
+            let c1 = palette[segmentIndex];
             let c2 = palette[segmentIndex + 1];
             
-            // Ensure c1 and c2 are arrays
-            if (!Array.isArray(c1) || !Array.isArray(c2)) {
-                // If they are not arrays (e.g. Lab objects), this function might not work as intended for HCL interpolation
-                // Assume input is HCL array for now as per optimizer.js
-                 // Convert Lab/Object to [h, c, l] if possible or fallback
-                 // But typically this is called with controlColors which are HCL arrays.
-            }
-
+            // HCL 插值
             let h1 = c1[0], h2 = c2[0];
             let diff = h2 - h1;
-            // Shortest path interpolation for hue
             if (diff > 180) diff -= 360;
             if (diff < -180) diff += 360;
-            
             let h = (h1 + diff * t + 360) % 360;
             let c = c1[1] + (c2[1] - c1[1]) * t;
             let l = c1[2] + (c2[2] - c1[2]) * t;
             
-            // Convert to Lab
-            samples.push(d3.lab(d3.hcl(h, c, l)));
+            fineSamples.push(d3.lab(d3.hcl(h, c, l)));
+        }
+
+        // 2. 按 CIEDE2000 = 3 进行采样
+        let jndStep = 3.0;
+        let samples = [];
+        if (fineSamples.length > 0) {
+            samples.push(fineSamples[0]); // 起点
+            let lastSample = fineSamples[0];
+            
+            for (let i = 1; i < fineSamples.length; i++) {
+                let current = fineSamples[i];
+                let dist = d3_ciede2000(lastSample, current);
+                if (dist >= jndStep) {
+                    samples.push(current);
+                    lastSample = current;
+                }
+            }
+            // 确保终点被包含（如果距离不够即使了，或者强制加入？）
+            // 通常强制加入终点可能会导致最后一个步长很小，这里我们严格按步长采样，不强制加终点
+            // 除非只有一个点
+            if (samples.length < 2 && fineSamples.length > 1) {
+                samples.push(fineSamples[fineSamples.length - 1]);
+            }
         }
         
+        if (samples.length < 2) return 0; // 长度不足一个JND
+
+        // 3. 计算全局最小色差 (所有点对的最小值，i != j)
         let minDeltaE = Number.MAX_VALUE;
-        for (let k = 0; k < samples.length - 1; k++) {
-            // Calculate color difference using d3_ciede2000
-            let deltaE;
-            if (typeof d3_ciede2000 === 'function') {
-                deltaE = d3_ciede2000(samples[k], samples[k+1]);
-            } else {
-                // Fallback to Euclidean if d3_ciede2000 is not available
-                let dL = samples[k].l - samples[k+1].l;
-                let da = samples[k].a - samples[k+1].a;
-                let db = samples[k].b - samples[k+1].b;
-                deltaE = Math.sqrt(dL*dL + da*da + db*db);
-            }
-            
-            if (deltaE < minDeltaE) {
-                minDeltaE = deltaE;
+        
+        for (let i = 0; i < samples.length; i++) {
+            for (let j = i + 1; j < samples.length; j++) {
+                let deltaE = d3_ciede2000(samples[i], samples[j]);
+                if (deltaE < minDeltaE) {
+                    minDeltaE = deltaE;
+                }
             }
         }
+        
+        if (minDeltaE === Number.MAX_VALUE) minDeltaE = 0;
         min_color_diff = minDeltaE;
+        
     } catch (e) {
         console.warn("Error in smoothness calculation:", e);
     }

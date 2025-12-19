@@ -9,8 +9,12 @@ let syncRotation = false;
 let globalYaw = 0.8;
 let globalPitch = 0.5;
 
-// Colormap 配置
-const COMPARISON_COLORMAPS = ['rainbow', 'thermal', 'viridis', 'jet'];
+// Colormap 配置（显示所有）
+const COMPARISON_COLORMAPS = (typeof getAllColormapIds === 'function') 
+    ? getAllColormapIds() 
+    : (typeof BUILTIN_COLORMAPS !== 'undefined' 
+        ? Object.keys(BUILTIN_COLORMAPS)
+        : ['viridis', 'turbo', 'plasma', 'thermal', 'rainbow', 'spectral', 'jet']);
 
 /**
  * 页面初始化
