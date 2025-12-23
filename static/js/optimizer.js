@@ -1,12 +1,26 @@
+// Global scoring weights (lambdas) - can be adjusted via UI
+window.scoringLambdas = {
+    alloc: 10.0,
+    uniform: 1.0,
+    in: 0.5,
+    bt: 2.0
+};
+
 function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.0001, cooling_param = 0.99) {
-    // initialize colors with monotonically increasing luminance
+    // initialize colors with thermal-like zigzag luminance (alternating high-low)
     let palette_size = data_arr[current_data_id].controlPoints.length;
     let initial_colors = []
     for (let i = 0; i < palette_size; i++) {
         let hue = (initial_hue - i * 360 / palette_size + 360) % 360
-        // Turbo-like luminance: 10 -> 90 -> 10 (Arch shape)
-        let x = i / (palette_size - 1);
-        let luminance = 10 + 80 * Math.sin(Math.PI * x);
+        // Thermal-like: alternating between low (20-40) and high (60-80) luminance
+        let luminance;
+        if (i % 2 === 0) {
+            // Even index: low luminance
+            luminance = 20 + Math.random() * 20
+        } else {
+            // Odd index: high luminance
+            luminance = 60 + Math.random() * 20
+        }
         let c = gamutMappingHCL(hue, 100, luminance)
         initial_colors.push([hue, c, luminance])
     }
@@ -48,11 +62,8 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
         }
 
         // once the hue changed, we need to find a suitable luminance
-        // Maintain Turbo-like luminance (Arch shape)
-        // Calculate target luminance based on position (Arch)
-        let x = idx / (pal.length - 1);
-        let targetL = 10 + 80 * Math.sin(Math.PI * x);
-        c[2] = targetL
+        // Random perturbation of luminance (no monotonicity constraint)
+        c[2] = Math.max(10, Math.min(90, c[2] + getRandomIntInclusive(-10, 10)))
         c[1] = gamutMappingHCL(c[0], 100, c[2])
         // 寻找一个合适的luminance，使得该颜色不是黑色或白色
         for (let j = 0; j < 30; j++) {
@@ -65,28 +76,13 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
                 // console.log(idx, hcl, name, nd_black, nd_white);
                 break
             }
-            // Adjust luminance while maintaining arch shape
-            let peak = Math.floor((pal.length - 1) / 2)
-            let minL = 10, maxL = 95
-            
-            if (idx < peak) {
-                minL = (idx > 0) ? pal[idx - 1][2] + 1 : 10
-                maxL = pal[idx + 1][2] - 1
-            } else if (idx > peak) {
-                maxL = pal[idx - 1][2] - 1
-                minL = (idx < pal.length - 1) ? pal[idx + 1][2] + 1 : 10
-            } else { // idx == peak
-                let left = (idx > 0) ? pal[idx - 1][2] : 10
-                let right = (idx < pal.length - 1) ? pal[idx + 1][2] : 10
-                minL = Math.max(left, right) + 1
-            }
-            
-            if (nd_black < 0.95 && c[2] < maxL)
+            // Adjust luminance within global bounds only
+            if (nd_black < 0.95 && c[2] < 90)
                 c[2] += 1
-            if (nd_white < 0.95 && c[2] > minL)
+            if (nd_white < 0.95 && c[2] > 10)
                 c[2] -= 1
-            // Clamp to maintain monotonicity
-            c[2] = Math.max(minL, Math.min(maxL, c[2]))
+            // Clamp to global bounds
+            c[2] = Math.max(10, Math.min(90, c[2]))
             // luminance change, max chroma should also change
             c[1] = gamutMappingHCL(c[0], 100, c[2])
 
@@ -94,28 +90,14 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
             if (!has_name) {
                 for (let i = 0; i < 30; i++) {
                     for (let k = 0; k < 50; k++) {
-                        // Maintain arch shape when searching for named colors
-                        let peak = Math.floor((pal.length - 1) / 2)
-                        let minL = 10, maxL = 95
-                        
-                        if (idx < peak) {
-                            minL = (idx > 0) ? pal[idx - 1][2] + 1 : 10
-                            maxL = pal[idx + 1][2] - 1
-                        } else if (idx > peak) {
-                            maxL = pal[idx - 1][2] - 1
-                            minL = (idx < pal.length - 1) ? pal[idx + 1][2] + 1 : 10
-                        } else { // idx == peak
-                            let left = (idx > 0) ? pal[idx - 1][2] : 10
-                            let right = (idx < pal.length - 1) ? pal[idx + 1][2] : 10
-                            minL = Math.max(left, right) + 1
-                        }
+                        // Search within global bounds
                         let searchL = c[2]
                         
-                        if (Math.abs(maxL - c[2]) < Math.abs(c[2] - minL)) {
-                            searchL = Math.max(minL, c[2] - i)
+                        if (Math.abs(90 - c[2]) < Math.abs(c[2] - 10)) {
+                            searchL = Math.max(10, c[2] - i)
                         }
                         else {
-                            searchL = Math.min(maxL, c[2] + i)
+                            searchL = Math.min(90, c[2] + i)
                         }
                         hcl = d3.hcl(c[0], c[1] - k, searchL)
                         name = getColorName(hcl).slice(0, 3)
@@ -184,6 +166,12 @@ function simulatedAnnealing(initial_temperature = 100000, end_temperature = 0.00
     preferredObj.initialization = initial_colors
     // preferredObj.palette = initial_colors
     console.log("preferredObj", preferredObj, iterate_times, JSON.stringify(preferredObj.palette));
+    
+    // Update UI with final scoring details
+    if (typeof updateScoreBreakdown === 'function' && window.lastScoringDetails) {
+        updateScoreBreakdown(window.lastScoringDetails);
+    }
+    
     let min_dis = 10000
     for (let i = 0; i < preferredObj.palette.length; i++) {
         let hcl = d3.hcl(preferredObj.palette[i][0], preferredObj.palette[i][1], preferredObj.palette[i][2])
@@ -313,22 +301,142 @@ function vecLength(v) {
 
 // ---------------------------------
 
+/**
+ * Natural cubic spline interpolation
+ * @param {Array} x - Parameter values (0, 1, 2, ..., n-1)
+ * @param {Array} y - Data values to interpolate
+ * @param {Array} xi - Query points
+ * @returns {Array} - Interpolated values at query points
+ */
+function cubicSplineInterpolation(x, y, xi) {
+    const n = x.length;
+    
+    // Compute second derivatives using natural spline (zero second derivative at endpoints)
+    const h = [];
+    const alpha = [];
+    
+    for (let i = 0; i < n - 1; i++) {
+        h[i] = x[i + 1] - x[i];
+    }
+    
+    for (let i = 1; i < n - 1; i++) {
+        alpha[i] = (3 / h[i]) * (y[i + 1] - y[i]) - (3 / h[i - 1]) * (y[i] - y[i - 1]);
+    }
+    
+    // Solve tridiagonal system
+    const l = new Array(n).fill(0);
+    const mu = new Array(n).fill(0);
+    const z = new Array(n).fill(0);
+    
+    l[0] = 1;
+    mu[0] = 0;
+    z[0] = 0;
+    
+    for (let i = 1; i < n - 1; i++) {
+        l[i] = 2 * (x[i + 1] - x[i - 1]) - h[i - 1] * mu[i - 1];
+        mu[i] = h[i] / l[i];
+        z[i] = (alpha[i] - h[i - 1] * z[i - 1]) / l[i];
+    }
+    
+    l[n - 1] = 1;
+    z[n - 1] = 0;
+    
+    const c = new Array(n).fill(0);
+    const b = new Array(n).fill(0);
+    const d = new Array(n).fill(0);
+    
+    c[n - 1] = 0;
+    
+    for (let j = n - 2; j >= 0; j--) {
+        c[j] = z[j] - mu[j] * c[j + 1];
+        b[j] = (y[j + 1] - y[j]) / h[j] - h[j] * (c[j + 1] + 2 * c[j]) / 3;
+        d[j] = (c[j + 1] - c[j]) / (3 * h[j]);
+    }
+    
+    // Evaluate spline at query points
+    const yi = [];
+    for (let k = 0; k < xi.length; k++) {
+        let xk = xi[k];
+        
+        // Find the interval
+        let i = 0;
+        for (let j = 0; j < n - 1; j++) {
+            if (xk >= x[j] && xk <= x[j + 1]) {
+                i = j;
+                break;
+            }
+        }
+        
+        // Evaluate cubic polynomial
+        const dx = xk - x[i];
+        yi[k] = y[i] + b[i] * dx + c[i] * dx * dx + d[i] * dx * dx * dx;
+    }
+    
+    return yi;
+}
+
+/**
+ * Interpolate hue with circular wrapping
+ * @param {Array} hues - Hue values at control points
+ * @param {Array} params - Parameter values (0 to palette.length-1)
+ * @param {Array} queryParams - Query parameter values
+ * @returns {Array} - Interpolated hue values
+ */
+function interpolateHue(hues, params, queryParams) {
+    // Convert hues to unwrapped values for spline interpolation
+    let unwrappedHues = [hues[0]];
+    for (let i = 1; i < hues.length; i++) {
+        let diff = hues[i] - hues[i - 1];
+        // Take shortest path
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        unwrappedHues[i] = unwrappedHues[i - 1] + diff;
+    }
+    
+    // Interpolate unwrapped hues
+    let interpolatedUnwrapped = cubicSplineInterpolation(params, unwrappedHues, queryParams);
+    
+    // Wrap back to [0, 360)
+    return interpolatedUnwrapped.map(h => (h % 360 + 360) % 360);
+}
+
 function resampleControlColors(palette) {
     /**
      * resample the control colors to get the colormap
-     * here we use the linear interpolation and equally sampling to get the colormap
+     * using natural cubic spline interpolation
      */
-    let colormap = [], tmp_c = [0, 0, 0, 1], sample_num = 10
-    for (let i = 0; i < palette.length - 1; i++) {
-        for (let j = 0; j < sample_num; j++) {
-            tmp_c[0] = palette[i][0] + (palette[i + 1][0] - palette[i][0]) * j / sample_num
-            tmp_c[1] = palette[i][1] + (palette[i + 1][1] - palette[i][1]) * j / sample_num
-            tmp_c[2] = palette[i][2] + (palette[i + 1][2] - palette[i][2]) * j / sample_num
-            colormap.push(tmp_c)
-        }
+    let sample_num = 10;
+    let totalSamples = (palette.length - 1) * sample_num + 1;
+    
+    // Control point parameters (0, 1, 2, ..., n-1)
+    let controlParams = [];
+    for (let i = 0; i < palette.length; i++) {
+        controlParams.push(i);
     }
-    colormap.push(palette[palette.length - 1])
-    return colormap
+    
+    // Query parameters
+    let queryParams = [];
+    for (let i = 0; i < totalSamples; i++) {
+        queryParams.push(i / sample_num);
+    }
+    
+    // Extract H, C, L channels
+    let hues = palette.map(c => c[0]);
+    let chromas = palette.map(c => c[1]);
+    let luminances = palette.map(c => c[2]);
+    
+    // Interpolate each channel
+    let interpHues = interpolateHue(hues, controlParams, queryParams);
+    let interpChromas = cubicSplineInterpolation(controlParams, chromas, queryParams);
+    let interpLuminances = cubicSplineInterpolation(controlParams, luminances, queryParams);
+    
+    // Combine into colormap
+    let colormap = [];
+    for (let i = 0; i < totalSamples; i++) {
+        colormap.push([interpHues[i], interpChromas[i], interpLuminances[i]]);
+    }
+    
+    return colormap;
 }
 
 /**
@@ -353,29 +461,36 @@ function getPaletteScore(palette) {
     // Dense sampling parameter
     const R = 512;  // Number of dense samples along the curve
     
-    // 1. Dense sampling along the colormap curve
+    // 1. Dense sampling along the colormap curve using cubic spline
     let samples = [];  // {u, lab}
+    
+    // Control point parameters
+    let controlParams = [];
+    for (let i = 0; i < palette.length; i++) {
+        controlParams.push(i);
+    }
+    
+    // Query parameters for dense sampling
+    let queryParams = [];
+    for (let i = 0; i < R; i++) {
+        queryParams.push((i / (R - 1)) * (palette.length - 1));
+    }
+    
+    // Extract H, C, L channels
+    let hues = palette.map(c => c[0]);
+    let chromas = palette.map(c => c[1]);
+    let luminances = palette.map(c => c[2]);
+    
+    // Interpolate each channel using cubic spline
+    let interpHues = interpolateHue(hues, controlParams, queryParams);
+    let interpChromas = cubicSplineInterpolation(controlParams, chromas, queryParams);
+    let interpLuminances = cubicSplineInterpolation(controlParams, luminances, queryParams);
+    
     for (let i = 0; i < R; i++) {
         let u = i / (R - 1);
-        
-        // Interpolate color at u
-        let segmentIndex = Math.floor(u * (palette.length - 1));
-        if (segmentIndex >= palette.length - 1) segmentIndex = palette.length - 1;
-        
-        let localU = (u * (palette.length - 1)) - segmentIndex;
-        
-        let c1 = palette[segmentIndex];
-        let c2 = palette[Math.min(segmentIndex + 1, palette.length - 1)];
-        
-        // HCL interpolation (shortest hue path)
-        let h1 = c1[0], h2 = c2[0];
-        let diff = h2 - h1;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
-        
-        let h = (h1 + diff * localU + 360) % 360;
-        let c = c1[1] + (c2[1] - c1[1]) * localU;
-        let l = c1[2] + (c2[2] - c1[2]) * localU;
+        let h = interpHues[i];
+        let c = interpChromas[i];
+        let l = interpLuminances[i];
         
         let lab = d3.lab(d3.hcl(h, c, l));
         samples.push({u: u, lab: lab});
@@ -485,27 +600,35 @@ function getPaletteScore(palette) {
         R_name_between += getNameDifference(rep_colors[k], rep_colors[k + 1]);
     }
     
-    // 6. Final loss function
-    const lambda_alloc = 10.0;
-    const lambda_uniform = 1.0;
-    const lambda_in = 0.5;
-    const lambda_bt = 2.0;
+    // 6. Final loss function using global lambdas
+    const lambda_alloc = window.scoringLambdas.alloc;
+    const lambda_uniform = window.scoringLambdas.uniform;
+    const lambda_in = window.scoringLambdas.in;
+    const lambda_bt = window.scoringLambdas.bt;
     
     let totalLoss = lambda_alloc * L_alloc 
                   + lambda_uniform * L_uniform 
                   + lambda_in * L_name_in 
                   - lambda_bt * R_name_between;
     
-    // For debugging
-    if (Math.random() < 0.01) {  // Log occasionally
-        console.log("Scoring:", {
-            L_alloc: L_alloc.toFixed(4),
-            L_uniform: L_uniform.toFixed(4),
-            L_name_in: L_name_in.toFixed(4),
-            R_name_between: R_name_between.toFixed(4),
-            totalLoss: totalLoss.toFixed(4)
-        });
+    // Store detailed scoring for UI display
+    if (typeof window.lastScoringDetails === 'undefined') {
+        window.lastScoringDetails = {};
     }
+    window.lastScoringDetails = {
+        totalScore: -totalLoss,
+        totalLoss: totalLoss,
+        L_alloc: L_alloc,
+        L_uniform: L_uniform,
+        L_name_in: L_name_in,
+        R_name_between: R_name_between,
+        weighted: {
+            alloc: lambda_alloc * L_alloc,
+            uniform: lambda_uniform * L_uniform,
+            nameIn: lambda_in * L_name_in,
+            nameBt: lambda_bt * R_name_between
+        }
+    };
     
     // Return NEGATIVE loss (since optimizer maximizes score)
     return -totalLoss;

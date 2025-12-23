@@ -68,6 +68,72 @@
                     <span id="statusId" style="color: #666;">⏳ Processing...</span>
                     <span id="scoreId" style="font-weight: bold; color: var(--primary-color);">Score: 0.00</span>
                 </div>
+                
+                <!-- Score Breakdown Panel -->
+                <div id="scoreBreakdownPanel">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0; font-size: 1rem;">📊 Score Breakdown</h4>
+                        <button onclick="document.getElementById('scoreLambdaPanel').style.display = document.getElementById('scoreLambdaPanel').style.display === 'none' ? 'block' : 'none'" style="padding: 2px 8px; font-size: 0.7rem; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; cursor: pointer;">⚙️ Weights</button>
+                    </div>
+                    <div style="font-size: 0.9rem; line-height: 1.8;">
+                        <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                            <span>Total Score:</span>
+                            <strong id="scoreTotal" style="font-size: 1.1rem;">--</strong>
+                        </div>
+                        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 8px 0;">
+                        <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                            <span>Allocation (L_alloc):</span>
+                            <span id="scoreAlloc">--</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                            <span>Uniformity (L_uniform):</span>
+                            <span id="scoreUniform">--</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                            <span>Name Consistency (L_name_in):</span>
+                            <span id="scoreNameIn">--</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+                            <span>Name Separation (R_name_bt):</span>
+                            <span id="scoreNameBt">--</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Lambda adjustment panel -->
+                    <div id="scoreLambdaPanel" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                        <h5 style="margin: 0 0 10px 0; font-size: 0.9rem; opacity: 0.9;">Adjust Weights (λ)</h5>
+                        <div style="font-size: 0.85rem;">
+                            <div style="margin-bottom: 8px;">
+                                <label style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                                    <span>λ_alloc:</span>
+                                    <span id="lambdaAllocValue">10.0</span>
+                                </label>
+                                <input type="range" id="lambdaAlloc" min="0" max="20" step="0.5" value="10" style="width: 100%;" oninput="updateLambda('alloc', this.value)">
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <label style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                                    <span>λ_uniform:</span>
+                                    <span id="lambdaUniformValue">1.0</span>
+                                </label>
+                                <input type="range" id="lambdaUniform" min="0" max="5" step="0.1" value="1" style="width: 100%;" oninput="updateLambda('uniform', this.value)">
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <label style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                                    <span>λ_name_in:</span>
+                                    <span id="lambdaInValue">0.5</span>
+                                </label>
+                                <input type="range" id="lambdaIn" min="0" max="2" step="0.1" value="0.5" style="width: 100%;" oninput="updateLambda('in', this.value)">
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <label style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                                    <span>λ_name_bt:</span>
+                                    <span id="lambdaBtValue">2.0</span>
+                                </label>
+                                <input type="range" id="lambdaBt" min="0" max="5" step="0.1" value="2" style="width: 100%;" oninput="updateLambda('bt', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                     <label style="font-weight: 500;">🤖 Auto-Optimization:</label>
                     <label class="switch">
@@ -179,6 +245,81 @@
     if (typeof initial_hue_id === 'undefined') window.initial_hue_id = 0;
     if (typeof colormap_width === 'undefined') window.colormap_width = 360;
     if (typeof colormap_height === 'undefined') window.colormap_height = 45;
+    
+    // Update score breakdown UI with detailed scoring information
+    window.updateScoreBreakdown = function(details) {
+        const panel = document.getElementById('scoreBreakdownPanel');
+        if (!panel) return;
+        
+        // Show the panel
+        panel.style.display = 'block';
+        
+        // Update values
+        document.getElementById('scoreTotal').textContent = details.totalScore.toFixed(4);
+        document.getElementById('scoreAlloc').textContent = 
+            `${details.L_alloc.toFixed(4)} (×${window.scoringLambdas.alloc} = ${details.weighted.alloc.toFixed(2)})`;
+        document.getElementById('scoreUniform').textContent = 
+            `${details.L_uniform.toFixed(4)} (×${window.scoringLambdas.uniform} = ${details.weighted.uniform.toFixed(2)})`;
+        document.getElementById('scoreNameIn').textContent = 
+            `${details.L_name_in.toFixed(4)} (×${window.scoringLambdas.in} = ${details.weighted.nameIn.toFixed(2)})`;
+        document.getElementById('scoreNameBt').textContent = 
+            `${details.R_name_between.toFixed(4)} (×${window.scoringLambdas.bt} = ${details.weighted.nameBt.toFixed(2)})`;
+        
+        console.log('Score Breakdown Updated:', details);
+    };
+    
+    // Update lambda coefficient and UI
+    window.updateLambda = function(type, value) {
+        value = parseFloat(value);
+        
+        switch(type) {
+            case 'alloc':
+                window.scoringLambdas.alloc = value;
+                document.getElementById('lambdaAllocValue').textContent = value.toFixed(1);
+                break;
+            case 'uniform':
+                window.scoringLambdas.uniform = value;
+                document.getElementById('lambdaUniformValue').textContent = value.toFixed(1);
+                break;
+            case 'in':
+                window.scoringLambdas.in = value;
+                document.getElementById('lambdaInValue').textContent = value.toFixed(1);
+                break;
+            case 'bt':
+                window.scoringLambdas.bt = value;
+                document.getElementById('lambdaBtValue').textContent = value.toFixed(1);
+                break;
+        }
+        
+        console.log('Lambda updated:', type, '=', value);
+        console.log('Current lambdas:', window.scoringLambdas);
+        
+        // If we have last scoring details, recalculate and update display
+        if (window.lastScoringDetails) {
+            const d = window.lastScoringDetails;
+            const totalLoss = window.scoringLambdas.alloc * d.L_alloc 
+                            + window.scoringLambdas.uniform * d.L_uniform 
+                            + window.scoringLambdas.in * d.L_name_in 
+                            - window.scoringLambdas.bt * d.R_name_between;
+            
+            const updatedDetails = {
+                totalScore: -totalLoss,
+                totalLoss: totalLoss,
+                L_alloc: d.L_alloc,
+                L_uniform: d.L_uniform,
+                L_name_in: d.L_name_in,
+                R_name_between: d.R_name_between,
+                weighted: {
+                    alloc: window.scoringLambdas.alloc * d.L_alloc,
+                    uniform: window.scoringLambdas.uniform * d.L_uniform,
+                    nameIn: window.scoringLambdas.in * d.L_name_in,
+                    nameBt: window.scoringLambdas.bt * d.R_name_between
+                }
+            };
+            
+            updateScoreBreakdown(updatedDetails);
+        }
+    };
     
     // getRGB2LabExtent()
     fetch("static/data/D15.txt")
