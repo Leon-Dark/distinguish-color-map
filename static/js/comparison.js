@@ -102,16 +102,36 @@ function renderAllComparisons() {
     
     // 2. 渲染每个内置colormap
     COMPARISON_COLORMAPS.forEach(name => {
-        let controlColors = BUILTIN_COLORMAPS[name].controlColors;
-        renderSingleLab3D(name, controlColors, false);
-        calculateAndDisplayMetrics(name, controlColors);
+        let colormapDef = BUILTIN_COLORMAPS[name];
+        let controlColors = colormapDef.controlColors;
+        let interpolationMode = colormapDef.interpolationMode || 'hcl';
+        let rgbData = colormapDef.rgbData;
+        renderSingleLab3D(name, controlColors, false, interpolationMode, rgbData);
+        calculateAndDisplayMetrics(name, controlColors, interpolationMode, rgbData);
     });
 }
 
 /**
  * 渲染单个Lab 3D视图
  */
-function renderSingleLab3D(name, controlColors, useRealColors) {
+function renderSingleLab3D(name, controlColors, useRealColors, interpolationMode, rgbData) {
+    interpolationMode = interpolationMode || 'hcl';
+    rgbData = rgbData || null;
+    
+    // 调试输出
+    if (name === 'rainbow') {
+        console.log('[renderSingleLab3D] rainbow:', {
+            name,
+            hasControlColors: !!controlColors,
+            controlColorsLength: controlColors ? controlColors.length : 0,
+            hasRgbData: !!rgbData,
+            rgbDataLength: rgbData ? rgbData.length : 0,
+            interpolationMode,
+            rgbData: rgbData
+        });
+    }
+    
+    if (!controlColors || controlColors.length === 0) return;
     let containerId = 'comp-lab3d-' + name; // Updated to match HTML ID
     let container = d3.select('#' + containerId);
     if (container.empty()) {
@@ -146,7 +166,7 @@ function renderSingleLab3D(name, controlColors, useRealColors) {
     if (typeof window.drawLabColorbar === 'function') {
         colorbarHeight = window.drawLabColorbar(container, rawWidth, controlColors);
     } else {
-        colorbarHeight = drawComparisonColorbar(container, rawWidth, controlColors);
+        colorbarHeight = drawComparisonColorbar(container, rawWidth, controlColors, interpolationMode, rgbData);
     }
     
     let width = rawWidth;
@@ -184,7 +204,7 @@ function renderSingleLab3D(name, controlColors, useRealColors) {
                 let localYaw = globalYaw - d3.event.dx * 0.01;
                 let localPitch = globalPitch + d3.event.dy * 0.01;
                 localPitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, localPitch));
-                renderSingleLab3D(name, controlColors, useRealColors);
+                renderSingleLab3D(name, controlColors, useRealColors, interpolationMode, rgbData);
             }
         }));
     
@@ -211,7 +231,9 @@ function renderSingleLab3D(name, controlColors, useRealColors) {
     });
     
     // 绘制colormap轨迹
-    let labPoints = getColormapArrayLabFromHCL(controlColors);
+    let labPoints = (interpolationMode === 'rgb' && rgbData) 
+        ? getColormapArrayLabFromRGB(rgbData)
+        : getColormapArrayLabFromHCL(controlColors);
     let step = Math.max(1, Math.floor(labPoints.length / 200));
     
     for (let i = 0; i < labPoints.length - step; i += step) {
@@ -221,8 +243,13 @@ function renderSingleLab3D(name, controlColors, useRealColors) {
         let color = "#333";
         if (useRealColors) {
             // 使用真实颜色
-            let hcl = interpolateHCL(controlColors, i / labPoints.length);
-            color = d3.hcl(hcl[0], hcl[1], hcl[2]).toString();
+            if (interpolationMode === 'rgb' && rgbData) {
+                let rgb = interpolateRGB(rgbData, i / labPoints.length);
+                color = d3.rgb(rgb[0], rgb[1], rgb[2]).toString();
+            } else {
+                let hcl = interpolateHCL(controlColors, i / labPoints.length);
+                color = d3.hcl(hcl[0], hcl[1], hcl[2]).toString();
+            }
         }
         
         elements.push({ 
@@ -293,6 +320,53 @@ function getColormapArrayLabFromHCL(controlColors) {
 }
 
 /**
+ * 从RGB控制点获取Lab数组
+ */
+function getColormapArrayLabFromRGB(rgbData) {
+    let colormap = [];
+    let totalSteps = 1000;
+    let stepPerSegment = Math.floor(totalSteps / (rgbData.length - 1));
+    
+    for (let i = 0; i < rgbData.length - 1; i++) {
+        for (let j = 0; j < stepPerSegment; j++) {
+            let t = j / stepPerSegment;
+            let r = rgbData[i][0] + (rgbData[i + 1][0] - rgbData[i][0]) * t;
+            let g = rgbData[i][1] + (rgbData[i + 1][1] - rgbData[i][1]) * t;
+            let b = rgbData[i][2] + (rgbData[i + 1][2] - rgbData[i][2]) * t;
+            
+            let lab = d3.lab(d3.rgb(r, g, b));
+            colormap.push([lab.L, lab.a, lab.b]);
+        }
+    }
+    
+    // 添加最后一个点
+    let lastRGB = rgbData[rgbData.length - 1];
+    let lastLab = d3.lab(d3.rgb(lastRGB[0], lastRGB[1], lastRGB[2]));
+    colormap.push([lastLab.L, lastLab.a, lastLab.b]);
+    
+    return colormap;
+}
+
+/**
+ * RGB插值
+ */
+function interpolateRGB(rgbData, t) {
+    let index = t * (rgbData.length - 1);
+    let i = Math.floor(index);
+    let frac = index - i;
+    
+    if (i >= rgbData.length - 1) {
+        return rgbData[rgbData.length - 1];
+    }
+    
+    let r = rgbData[i][0] + (rgbData[i + 1][0] - rgbData[i][0]) * frac;
+    let g = rgbData[i][1] + (rgbData[i + 1][1] - rgbData[i][1]) * frac;
+    let b = rgbData[i][2] + (rgbData[i + 1][2] - rgbData[i][2]) * frac;
+    
+    return [r, g, b];
+}
+
+/**
  * HCL插值
  */
 function interpolateHCL(controlColors, t) {
@@ -323,9 +397,24 @@ function interpolateHCL(controlColors, t) {
 /**
  * 计算并显示指标
  */
-function calculateAndDisplayMetrics(name, controlColors) {
+function calculateAndDisplayMetrics(name, controlColors, interpolationMode, rgbData) {
+    interpolationMode = interpolationMode || 'hcl';
+    
+    // 如果是RGB插值模式，需要先转换为HCL格式供metrics计算
+    let metricsColors = controlColors;
+    if (interpolationMode === 'rgb' && rgbData && typeof d3 !== 'undefined') {
+        metricsColors = [];
+        rgbData.forEach(rgb => {
+            let c = d3.hcl(d3.rgb(rgb[0], rgb[1], rgb[2]));
+            if (isNaN(c.h)) {
+                c.h = (metricsColors.length > 0) ? metricsColors[metricsColors.length-1][0] : 0;
+            }
+            metricsColors.push([c.h, c.c, c.l]);
+        });
+    }
+    
     const metrics = (typeof computeCardMetrics === 'function')
-        ? computeCardMetrics(controlColors)
+        ? computeCardMetrics(metricsColors)
         : { smoothness: 0, discriminatoryCie: 0, contrastSensitivity: 0, hue: 0, luminanceVariation: 0, chromaticVariation: 0, labLength: 0, nameVariation: 0, categorization: 0, categoryCount: 0, categoryMeanDeltaE: 0 };
 
     // Prefer the shared panel updater if it exists
@@ -443,7 +532,8 @@ function hideLoading() {
     });
 }
 
-function drawComparisonColorbar(container, width, controlColors) {
+function drawComparisonColorbar(container, width, controlColors, interpolationMode, rgbData) {
+    interpolationMode = interpolationMode || 'hcl';
     if (!controlColors || !controlColors.length) return 0;
     const height = 12;
     const margin = 8;
@@ -456,16 +546,66 @@ function drawComparisonColorbar(container, width, controlColors) {
         .style('display', 'block')
         .style('margin-bottom', margin + 'px');
     const ctx = canvas.node().getContext('2d');
-    ctx.scale(dpr, dpr);
-    const gradient = ctx.createLinearGradient(0, 0, width, 0);
-    const stops = controlColors.length === 1 ? [0, 1] : controlColors.map((_, idx) => idx / (controlColors.length - 1));
-    stops.forEach((t, idx) => {
-        const sourceIdx = controlColors.length === 1 ? 0 : idx;
-        const hcl = controlColors[sourceIdx];
-        const rgb = d3.hcl(hcl[0], hcl[1], hcl[2]).rgb();
-        gradient.addColorStop(t, `rgb(${rgb.r},${rgb.g},${rgb.b})`);
-    });
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+    
+    if (interpolationMode === 'rgb' && rgbData) {
+        // RGB插值模式：逐像素绘制以确保真正的线性RGB插值
+        const scaledWidth = Math.round(width * dpr);
+        const scaledHeight = Math.round(height * dpr);
+        const imageData = ctx.createImageData(scaledWidth, scaledHeight);
+        const data = imageData.data;
+        
+        // 调试输出 - 只对前几个colorbar输出
+        if (window.debugColorbarCount === undefined) window.debugColorbarCount = 0;
+        if (window.debugColorbarCount < 2) {
+            console.log('[Colorbar Debug]', {
+                interpolationMode,
+                rgbDataLength: rgbData.length,
+                rgbData: rgbData,
+                scaledWidth,
+                scaledHeight,
+                width,
+                dpr
+            });
+            
+            // 测试插值
+            console.log('[Colorbar] Interpolation test:');
+            for (let testT = 0; testT <= 1; testT += 0.1) {
+                const testRgb = interpolateRGB(rgbData, testT);
+                console.log(`  t=${testT.toFixed(1)}: rgb(${Math.round(testRgb[0])}, ${Math.round(testRgb[1])}, ${Math.round(testRgb[2])})`);
+            }
+            
+            window.debugColorbarCount++;
+        }
+        
+        for (let x = 0; x < scaledWidth; x++) {
+            const t = x / (scaledWidth - 1);
+            const rgb = interpolateRGB(rgbData, t);
+            const r = Math.round(rgb[0]);
+            const g = Math.round(rgb[1]);
+            const b = Math.round(rgb[2]);
+            
+            for (let y = 0; y < scaledHeight; y++) {
+                const idx = (y * scaledWidth + x) * 4;
+                data[idx] = r;
+                data[idx + 1] = g;
+                data[idx + 2] = b;
+                data[idx + 3] = 255;
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+    } else {
+        // HCL插值模式：使用gradient（向后兼容）
+        ctx.scale(dpr, dpr);
+        const gradient = ctx.createLinearGradient(0, 0, width, 0);
+        const stops = controlColors.length === 1 ? [0, 1] : controlColors.map((_, idx) => idx / (controlColors.length - 1));
+        stops.forEach((t, idx) => {
+            const sourceIdx = controlColors.length === 1 ? 0 : idx;
+            const hcl = controlColors[sourceIdx];
+            const rgb = d3.hcl(hcl[0], hcl[1], hcl[2]).rgb();
+            gradient.addColorStop(t, `rgb(${rgb.r},${rgb.g},${rgb.b})`);
+        });
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+    }
     return height + margin;
 }

@@ -1563,6 +1563,12 @@ function drawHistogramWithMultipleGaussians(dataArray, gaussianParamsArray) {
  * 从HCL控制点生成Lab数组（用于对比colormap）- Renamed to avoid conflict
  */
 function getLabPointsFromHCL_Render(controlColors) {
+    // 添加null检查
+    if (!controlColors || !Array.isArray(controlColors) || controlColors.length === 0) {
+        console.warn('[getLabPointsFromHCL_Render] Invalid controlColors:', controlColors);
+        return { labPoints: [], hclPoints: [] };
+    }
+    
     let colormap = [];
     // 使用足够多的点来保证平滑
     let totalSteps = 200; 

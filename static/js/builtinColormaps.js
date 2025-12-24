@@ -450,23 +450,18 @@ function sampleFromD3(interpolator, samples = 15) {
     return colors;
 }
 
-// 辅助函数：从 COLOR_PRESETS 获取并转换/采样
-function getFromPreset(presetName, sampleCount = 15) {
+// 辅助函数：从 COLOR_PRESETS 获取RGB控制点（直接返回原始数据用于RGB插值）
+function getFromPresetRGB(presetName) {
     if (typeof COLOR_PRESETS === 'undefined' || !COLOR_PRESETS[presetName]) {
         return null;
     }
     
     let source = COLOR_PRESETS[presetName];
-    // 如果 source 是函数（metrics.js 中 viridis/plasma 是函数生成的数组，但 COLOR_PRESETS 存储的是结果数组）
-    // 检查 source 是否为数组
     if (!Array.isArray(source)) return null;
 
     let colors = [];
-    for (let i = 0; i < sampleCount; i++) {
-        // 均匀采样索引
-        let idx = Math.round(i / (sampleCount - 1) * (source.length - 1));
-        let rgb = source[idx];
-        
+    for (let i = 0; i < source.length; i++) {
+        let rgb = source[i];
         let r = rgb[0], g = rgb[1], b = rgb[2];
         
         // Cubehelix 数据是 0-1 范围，需要转换到 0-255
@@ -476,17 +471,25 @@ function getFromPreset(presetName, sampleCount = 15) {
             b *= 255;
         }
 
-        // RGB [r, g, b] -> HCL
-        if (typeof d3 !== 'undefined') {
-            let c = d3.hcl(d3.rgb(r, g, b));
-            
-            if (isNaN(c.h)) {
-                 c.h = (colors.length > 0) ? colors[colors.length-1][0] : 0;
-            }
-            colors.push([c.h, c.c, c.l]);
-        }
+        colors.push([r, g, b]);
     } 
     return colors;
+}
+
+// 辅助函数：从 COLOR_PRESETS 获取并转换为HCL（用于向后兼容）
+function getFromPreset(presetName, sampleCount = 15) {
+    let rgbColors = getFromPresetRGB(presetName, sampleCount);
+    if (!rgbColors || typeof d3 === 'undefined') return null;
+    
+    let hclColors = [];
+    rgbColors.forEach(rgb => {
+        let c = d3.hcl(d3.rgb(rgb[0], rgb[1], rgb[2]));
+        if (isNaN(c.h)) {
+            c.h = (hclColors.length > 0) ? hclColors[hclColors.length-1][0] : 0;
+        }
+        hclColors.push([c.h, c.c, c.l]);
+    });
+    return hclColors;
 }
 
 const BUILTIN_COLORMAPS = {
@@ -494,6 +497,8 @@ const BUILTIN_COLORMAPS = {
         name: "Greyscale",
         description: "灰度",
         controlColors: getFromPreset('greyscale'),
+        rgbData: getFromPresetRGB('greyscale'),
+        interpolationMode: 'rgb',
         category: "单色调"
     },
     
@@ -501,6 +506,8 @@ const BUILTIN_COLORMAPS = {
         name: "Rainbow",
         description: "经典彩虹",
         controlColors: getFromPreset('rainbow'),
+        rgbData: getFromPresetRGB('rainbow'),
+        interpolationMode: 'rgb',
         category: "传统"
     },
     
@@ -508,6 +515,8 @@ const BUILTIN_COLORMAPS = {
         name: "Rainbow CIE",
         description: "CIE 彩虹",
         controlColors: getFromPreset('rainbowcie'),
+        rgbData: getFromPresetRGB('rainbowcie'),
+        interpolationMode: 'rgb',
         category: "传统"
     },
     
@@ -515,6 +524,8 @@ const BUILTIN_COLORMAPS = {
         name: "Rainbow Custom CIE",
         description: "无绿色彩虹",
         controlColors: getFromPreset('rainbowcustomcie'),
+        rgbData: getFromPresetRGB('rainbowcustomcie'),
+        interpolationMode: 'rgb',
         category: "传统"
     },
     
@@ -522,6 +533,8 @@ const BUILTIN_COLORMAPS = {
         name: "Cubehelix",
         description: "螺旋色彩空间",
         controlColors: getFromPreset('cubehelix'),
+        rgbData: getFromPresetRGB('cubehelix'),
+        interpolationMode: 'rgb',
         category: "传统"
     },
     
@@ -529,6 +542,8 @@ const BUILTIN_COLORMAPS = {
         name: "Single Hue",
         description: "单色调蓝",
         controlColors: getFromPreset('singlehue'),
+        rgbData: getFromPresetRGB('singlehue'),
+        interpolationMode: 'rgb',
         category: "单色调"
     },
     
@@ -536,6 +551,8 @@ const BUILTIN_COLORMAPS = {
         name: "Multi Hue",
         description: "多色调蓝绿",
         controlColors: getFromPreset('multihue'),
+        rgbData: getFromPresetRGB('multihue'),
+        interpolationMode: 'rgb',
         category: "单色调"
     },
     
@@ -543,6 +560,8 @@ const BUILTIN_COLORMAPS = {
         name: "Body Heat",
         description: "热力分布",
         controlColors: getFromPreset('bodyheat'),
+        rgbData: getFromPresetRGB('bodyheat'),
+        interpolationMode: 'rgb',
         category: "传统"
     },
     
@@ -550,6 +569,8 @@ const BUILTIN_COLORMAPS = {
         name: "Spectral",
         description: "ColorBrewer 发散",
         controlColors: getFromPreset('spectral'),
+        rgbData: getFromPresetRGB('spectral'),
+        interpolationMode: 'rgb',
         category: "发散"
     },
     
@@ -557,6 +578,8 @@ const BUILTIN_COLORMAPS = {
         name: "Cool Warm",
         description: "冷暖发散 (Moreland)",
         controlColors: getFromPreset('coolwarm'),
+        rgbData: getFromPresetRGB('coolwarm'),
+        interpolationMode: 'rgb',
         category: "发散"
     },
     
@@ -564,6 +587,8 @@ const BUILTIN_COLORMAPS = {
         name: "Viridis",
         description: "感知均匀 (Matplotlib)",
         controlColors: getFromPreset('viridis'),
+        rgbData: getFromPresetRGB('viridis'),
+        interpolationMode: 'rgb',
         category: "感知均匀"
     },
     
@@ -571,6 +596,8 @@ const BUILTIN_COLORMAPS = {
         name: "Turbo",
         description: "Google Turbo",
         controlColors: getFromPreset('turbo'),
+        rgbData: getFromPresetRGB('turbo'),
+        interpolationMode: 'rgb',
         category: "感知均匀"
     },
     
@@ -578,6 +605,8 @@ const BUILTIN_COLORMAPS = {
         name: "Jet",
         description: "Jet 风格彩虹",
         controlColors: getFromPreset('rainbowjet'),
+        rgbData: getFromPresetRGB('rainbowjet'),
+        interpolationMode: 'rgb',
         category: "传统"
     },
 
@@ -611,6 +640,13 @@ const BUILTIN_COLORMAPS = {
                 [63,69,53], [49,66,37], [25,43,21], [15,37,33], [16,31,46], [6,25,60], [2,21,73], [20,12,85], [20,9,93], [0,0,100]
             ];
         })(),
+        rgbData: [
+            [0,0,0],[25,0,0],[60,0,4],[102,0,51],[156,0,102],[191,12,153],[229,38,204],[255,68,255],[204,51,225],[140,43,195],
+            [89,30,165],[51,20,135],[0,0,76],[12,51,135],[25,76,165],[38,114,195],[51,178,225],[63,255,255],[25,219,110],[0,183,76],
+            [0,156,51],[0,130,25],[0,97,0],[51,144,0],[102,181,0],[153,210,0],[204,237,12],[255,255,25],[235,216,0],[216,153,0],
+            [193,102,0],[159,51,0],[102,12,25],[130,51,63],[159,89,96],[188,127,140],[216,165,178],[235,204,204],[255,229,229],[255,255,255]
+        ],
+        interpolationMode: 'rgb',
         category: "传统"
     },
     
@@ -618,6 +654,8 @@ const BUILTIN_COLORMAPS = {
         name: "Blues",
         description: "蓝色系",
         controlColors: getFromPreset('blues'),
+        rgbData: getFromPresetRGB('blues'),
+        interpolationMode: 'rgb',
         category: "单色调"
     },
 
@@ -625,6 +663,8 @@ const BUILTIN_COLORMAPS = {
         name: "Purples",
         description: "紫色系",
         controlColors: getFromPreset('purples'),
+        rgbData: getFromPresetRGB('purples'),
+        interpolationMode: 'rgb',
         category: "单色调"
     },
 
@@ -632,6 +672,8 @@ const BUILTIN_COLORMAPS = {
         name: "Reds",
         description: "红色系",
         controlColors: getFromPreset('reds'),
+        rgbData: getFromPresetRGB('reds'),
+        interpolationMode: 'rgb',
         category: "单色调"
     },
 
@@ -639,6 +681,8 @@ const BUILTIN_COLORMAPS = {
         name: "Red-Purple",
         description: "红紫发散",
         controlColors: getFromPreset('redpurple'),
+        rgbData: getFromPresetRGB('redpurple'),
+        interpolationMode: 'rgb',
         category: "发散"
     },
 
@@ -646,6 +690,8 @@ const BUILTIN_COLORMAPS = {
         name: "Grey-Red",
         description: "灰红发散",
         controlColors: getFromPreset('greyred'),
+        rgbData: getFromPresetRGB('greyred'),
+        interpolationMode: 'rgb',
         category: "发散"
     },
 
@@ -653,6 +699,8 @@ const BUILTIN_COLORMAPS = {
         name: "Plasma",
         description: "Plasma (感知均匀)",
         controlColors: getFromPreset('plasma'),
+        rgbData: getFromPresetRGB('plasma'),
+        interpolationMode: 'rgb',
         category: "感知均匀"
     },
 };
