@@ -68,15 +68,83 @@ const Spline = (function() {
         return clipAmount;
     }
 
-    function initializeKnots(seed) {
-        const rng = seededRandom(seed);
+    function initializeKnotsFromRainbow() {
+        // Rainbow colormap: Blue -> Cyan -> Green -> Yellow -> Red
+        const rainbowRGB = [
+            [0, 0, 255],      // Blue
+            [0, 255, 255],    // Cyan
+            [0, 255, 0],      // Green
+            [255, 255, 0],    // Yellow
+            [255, 0, 0],      // Red
+        ];
+        
         const knots = [];
         
         for (let i = 0; i < NUM_KNOTS; i++) {
             const u = KNOT_POSITIONS[i];
             
-            const hue = u * 280;
-            const saturation = 0.8 + rng() * 0.2;
+            // Interpolate between rainbow colors
+            const scaledU = u * (rainbowRGB.length - 1);
+            const idx0 = Math.floor(scaledU);
+            const idx1 = Math.min(idx0 + 1, rainbowRGB.length - 1);
+            const t = scaledU - idx0;
+            
+            const rgb0 = rainbowRGB[idx0];
+            const rgb1 = rainbowRGB[idx1];
+            
+            // Linear interpolation in RGB space, then normalize to 0-1
+            const r = (rgb0[0] * (1 - t) + rgb1[0] * t) / 255;
+            const g = (rgb0[1] * (1 - t) + rgb1[1] * t) / 255;
+            const b = (rgb0[2] * (1 - t) + rgb1[2] * t) / 255;
+            
+            knots.push([r, g, b]);
+        }
+        
+        return knots;
+    }
+
+    function initializeKnots(seed) {
+        // Start with rainbow as base
+        const knots = initializeKnotsFromRainbow();
+        
+        // Add seed-based perturbation to create variety
+        if (seed !== undefined && seed !== null) {
+            const rng = seededRandom(seed);
+            
+            // Add small random perturbations to each knot
+            for (let i = 0; i < knots.length; i++) {
+                for (let c = 0; c < 3; c++) {
+                    // Add ±10% random variation
+                    const perturbation = (rng() - 0.5) * 0.2;
+                    knots[i][c] = Math.max(0, Math.min(1, knots[i][c] + perturbation));
+                }
+            }
+        }
+        
+        return knots;
+    }
+    
+    function initializeKnotsRandom(seed) {
+        const rng = seededRandom(seed);
+        const knots = [];
+        
+        // Randomize the hue sweep to allow different colormap orientations
+        // e.g. Red->Blue, Blue->Red, or other rainbow segments
+        const startHue = rng() * 360; 
+        const direction = rng() > 0.5 ? 1 : -1;
+        const hueRange = 200 + rng() * 100; // Sweep between 240 and 340 degrees
+        
+        for (let i = 0; i < NUM_KNOTS; i++) {
+            const u = KNOT_POSITIONS[i];
+            
+            // Calculate hue with random start and direction
+            let hue = startHue + direction * (u * hueRange);
+            // Normalize hue to 0-360
+            hue = ((hue % 360) + 360) % 360;
+            
+            // Reduce saturation to avoid immediate gamut clipping
+            // Previous 0.8-1.0 was too aggressive for random hues
+            const saturation = 0.5 + rng() * 0.3;
             
             let lightness;
             if (u < 0.5) {
@@ -111,6 +179,8 @@ const Spline = (function() {
         evaluateRGB,
         getClipAmount,
         initializeKnots,
+        initializeKnotsRandom,
+        initializeKnotsFromRainbow,
         seededRandom
     };
 })();

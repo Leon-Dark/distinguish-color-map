@@ -22,10 +22,10 @@ const App = (function() {
         samplesValue: null,
         w1: null,
         w1Value: null,
+        w2: null,
+        w2Value: null,
         w3: null,
-        w3Value: null,
-        w5: null,
-        w5Value: null
+        w3Value: null
     };
 
     function init() {
@@ -58,10 +58,10 @@ const App = (function() {
         
         elements.w1 = document.getElementById('w1');
         elements.w1Value = document.getElementById('w1-value');
+        elements.w2 = document.getElementById('w2');
+        elements.w2Value = document.getElementById('w2-value');
         elements.w3 = document.getElementById('w3');
         elements.w3Value = document.getElementById('w3-value');
-        elements.w5 = document.getElementById('w5');
-        elements.w5Value = document.getElementById('w5-value');
     }
 
     function attachEventListeners() {
@@ -84,12 +84,12 @@ const App = (function() {
             elements.w1Value.textContent = parseFloat(e.target.value).toFixed(1);
         });
         
-        elements.w3.addEventListener('input', (e) => {
-            elements.w3Value.textContent = parseFloat(e.target.value).toFixed(1);
+        elements.w2.addEventListener('input', (e) => {
+            elements.w2Value.textContent = parseFloat(e.target.value).toFixed(1);
         });
         
-        elements.w5.addEventListener('input', (e) => {
-            elements.w5Value.textContent = parseFloat(e.target.value).toFixed(1);
+        elements.w3.addEventListener('input', (e) => {
+            elements.w3Value.textContent = parseFloat(e.target.value).toFixed(1);
         });
     }
 
@@ -111,15 +111,19 @@ const App = (function() {
     function handleGenerate() {
         if (isOptimizing) return;
         
+        // Auto-generate a new random seed for each optimization to ensure variety
+        const newSeed = Math.floor(Math.random() * 1000000);
+        elements.seed.value = newSeed;
+        
         const params = {
             iterations: parseInt(elements.iterations.value),
-            seed: parseInt(elements.seed.value),
+            seed: newSeed,
             nq: parseInt(elements.nq.value),
             samples: parseInt(elements.samples.value),
             weights: {
                 w1: parseFloat(elements.w1.value),
-                w3: parseFloat(elements.w3.value),
-                w5: parseFloat(elements.w5.value)
+                w2: parseFloat(elements.w2.value),
+                w3: parseFloat(elements.w3.value)
             }
         };
         
@@ -140,9 +144,14 @@ const App = (function() {
         let frameCount = 0;
         const maxFrames = params.iterations;
         
-        const currentKnots = Spline.initializeKnots(params.seed);
+        let currentKnots = Spline.initializeKnots(params.seed);
+        let currentResult = Generator.scoreColormap(currentKnots, params);
+        
+        // Ensure initial state is valid or accept it as starting point
+        let currentScore = currentResult.valid ? currentResult.score : Infinity;
+        
         let bestKnots = JSON.parse(JSON.stringify(currentKnots));
-        let bestScore = Generator.scoreColormap(currentKnots, params).score;
+        let bestScore = currentScore;
         
         const rng = Spline.seededRandom(params.seed);
         let temperature = 1.0;
@@ -151,22 +160,52 @@ const App = (function() {
         const startTime = Date.now();
         
         function step() {
+            // Create a candidate by modifying current knots
+            const candidateKnots = JSON.parse(JSON.stringify(currentKnots));
+            
             const numMutations = Math.floor(rng() * 3) + 1;
             for (let m = 0; m < numMutations; m++) {
                 const knotIdx = Math.floor(rng() * Spline.NUM_KNOTS);
                 const channel = Math.floor(rng() * 3);
                 const delta = (rng() - 0.5) * temperature * 0.3;
-                currentKnots[knotIdx][channel] = Math.max(0, Math.min(1, 
-                    currentKnots[knotIdx][channel] + delta
+                candidateKnots[knotIdx][channel] = Math.max(0, Math.min(1, 
+                    candidateKnots[knotIdx][channel] + delta
                 ));
             }
             
-            const candidateResult = Generator.scoreColormap(currentKnots, params);
-            const candidateScore = candidateResult.score;
+            const candidateResult = Generator.scoreColormap(candidateKnots, params);
             
-            if (candidateScore > bestScore) {
-                bestKnots = JSON.parse(JSON.stringify(currentKnots));
-                bestScore = candidateScore;
+            let accept = false;
+            if (candidateResult.valid) {
+                const candidateScore = candidateResult.score;
+                
+                if (currentScore === Infinity) {
+                    accept = true;
+                } else {
+                    // Minimization logic
+                    const deltaScore = candidateScore - currentScore;
+                    accept = deltaScore < 0 || rng() < Math.exp(-deltaScore / (temperature * 0.1));
+                }
+            } else if (currentScore === Infinity) {
+                // If both are invalid, try to minimize the failure penalty (e.g. clipping)
+                // to guide the optimizer towards a valid state
+                const currentPenalty = currentResult.clipPenalty || 100;
+                const candidatePenalty = candidateResult.clipPenalty || 100;
+                
+                // Use annealing for penalty minimization too, to avoid getting stuck
+                const deltaPenalty = candidatePenalty - currentPenalty;
+                accept = deltaPenalty < 0 || rng() < Math.exp(-deltaPenalty / (temperature * 0.05));
+            }
+                
+            if (accept) {
+                currentKnots = candidateKnots;
+                currentScore = candidateResult.valid ? candidateResult.score : Infinity;
+                currentResult = candidateResult;
+                
+                if (candidateResult.valid && candidateResult.score < bestScore) {
+                    bestKnots = JSON.parse(JSON.stringify(candidateKnots));
+                    bestScore = candidateResult.score;
+                }
             }
             
             temperature *= coolingRate;
@@ -178,8 +217,8 @@ const App = (function() {
                 updateProgress({
                     progress,
                     iteration: frameCount,
-                    currentScore: candidateScore,
-                    bestScore,
+                    currentScore: currentScore,
+                    bestScore: bestScore,
                     elapsed,
                     bestKnots: JSON.parse(JSON.stringify(bestKnots))
                 });
@@ -213,11 +252,14 @@ const App = (function() {
         const pct = Math.round(data.progress * 100);
         elements.progressBar.style.width = pct + '%';
         elements.progressText.textContent = `Iteration ${data.iteration} (${pct}%)`;
-        elements.currentScore.textContent = data.currentScore.toFixed(4);
-        elements.bestScore.textContent = data.bestScore.toFixed(4);
+        
+        const formatScore = (s) => (s === Infinity || s >= 9999) ? 'Searching...' : s.toFixed(4);
+        
+        elements.currentScore.textContent = formatScore(data.currentScore);
+        elements.bestScore.textContent = formatScore(data.bestScore);
         elements.timeElapsed.textContent = (data.elapsed / 1000).toFixed(1) + 's';
         
-        if (data.bestKnots) {
+        if (data.bestKnots && data.bestScore !== Infinity && data.bestScore < 9999) {
             generatedKnots = data.bestKnots;
             renderColorStrips();
             renderCharts();
@@ -359,7 +401,6 @@ const App = (function() {
         
         const turboL = [];
         const genL = [];
-        const targetL = [];
         
         for (let i = 0; i < samples; i++) {
             const u = i / (samples - 1);
@@ -368,16 +409,14 @@ const App = (function() {
             
             turboL.push(tlab[0]);
             genL.push(glab[0]);
-            targetL.push(Generator.targetLightness(u));
         }
         
-        drawCurve(ctx, targetL, width, height, '#cccccc', 2, true);
         drawCurve(ctx, turboL, width, height, '#667eea', 2, false);
         drawCurve(ctx, genL, width, height, '#764ba2', 2, true);
         
         ctx.fillStyle = '#333';
         ctx.font = '12px sans-serif';
-        ctx.fillText('Gray: Target | Blue: Turbo | Purple: Generated', 10, 20);
+        ctx.fillText('Blue: Turbo (Target) | Purple: Generated', 10, 20);
     }
 
     function renderDeltaChart() {

@@ -1,153 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatic Turbo-like Colormap Generator</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Turbo Colormap Generator</title>
 </head>
+
 <body>
-    <div class="container">
-        <header>
-            <h1>🎨 Automatic Turbo-like Colormap Generator</h1>
-            <p>Generate and compare perceptually-optimized colormaps against Google's Turbo</p>
-        </header>
-
-        <div class="controls-panel">
-            <div class="control-group">
-                <h3>Optimization Parameters</h3>
-                <div class="control-row">
-                    <label>Iterations: <span id="iterations-value">1000</span></label>
-                    <input type="range" id="iterations" min="200" max="5000" value="1000" step="100">
-                </div>
-                <div class="control-row">
-                    <label>Seed: </label>
-                    <input type="number" id="seed" value="42" min="0" max="999999">
-                </div>
-                <div class="control-row">
-                    <label>Quantization Points: <span id="nq-value">33</span></label>
-                    <input type="range" id="nq" min="16" max="64" value="33" step="1">
-                </div>
-                <div class="control-row">
-                    <label>Samples (M): <span id="samples-value">256</span></label>
-                    <input type="range" id="samples" min="64" max="512" value="256" step="64">
-                </div>
-            </div>
-
-            <div class="control-group">
-                <h3>Optimization Weights</h3>
-                <div class="control-row">
-                    <label>Contrast (w1): <span id="w1-value">1.0</span></label>
-                    <input type="range" id="w1" min="0" max="5" value="1.0" step="0.1">
-                </div>
-                <div class="control-row">
-                    <label>Step Smoothness (w3): <span id="w3-value">0.5</span></label>
-                    <input type="range" id="w3" min="0" max="2" value="0.5" step="0.1">
-                </div>
-                <div class="control-row">
-                    <label>Lightness Match (w5): <span id="w5-value">0.8</span></label>
-                    <input type="range" id="w5" min="0" max="2" value="0.8" step="0.1">
-                </div>
-            </div>
-
-            <div class="control-group">
-                <div class="button-row">
-                    <button id="generate-btn" class="primary-btn">🚀 Generate Colormap</button>
-                    <button id="export-btn" class="secondary-btn">💾 Export</button>
-                </div>
-                <div class="progress-container">
-                    <div class="progress-bar" id="progress-bar"></div>
-                    <div class="progress-text" id="progress-text">Ready</div>
-                </div>
-                <div class="stats" id="stats">
-                    <div><strong>Current Score:</strong> <span id="current-score">-</span></div>
-                    <div><strong>Best Score:</strong> <span id="best-score">-</span></div>
-                    <div><strong>Avg ΔE:</strong> <span id="avg-delta-e">-</span></div>
-                    <div><strong>Time:</strong> <span id="time-elapsed">-</span></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="visualization-panel">
-            <h2>Colormap Comparison</h2>
-            
-            <div class="colormap-strips">
-                <div class="strip-container">
-                    <h3>Official Turbo</h3>
-                    <canvas id="turbo-strip" width="512" height="40"></canvas>
-                </div>
-                <div class="strip-container">
-                    <h3>Generated Turbo-like</h3>
-                    <canvas id="generated-strip" width="512" height="40"></canvas>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="chart-container">
-                    <h3>RGB Channels</h3>
-                    <canvas id="rgb-chart" width="512" height="300"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Perceptual Lightness (OKLab L)</h3>
-                    <canvas id="lightness-chart" width="512" height="300"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h3>Difference ΔE (OKLab)</h3>
-                    <canvas id="delta-chart" width="512" height="300"></canvas>
-                </div>
-            </div>
-
-            <h2>Image Comparison</h2>
-            <div class="image-comparison">
-                <div class="image-set">
-                    <h3>Smooth Gradient</h3>
-                    <div class="image-pair">
-                        <div class="image-item">
-                            <h4>Turbo</h4>
-                            <canvas id="img-gradient-turbo" width="256" height="256"></canvas>
-                        </div>
-                        <div class="image-item">
-                            <h4>Generated</h4>
-                            <canvas id="img-gradient-gen" width="256" height="256"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="image-set">
-                    <h3>Radial Gradient</h3>
-                    <div class="image-pair">
-                        <div class="image-item">
-                            <h4>Turbo</h4>
-                            <canvas id="img-radial-turbo" width="256" height="256"></canvas>
-                        </div>
-                        <div class="image-item">
-                            <h4>Generated</h4>
-                            <canvas id="img-radial-gen" width="256" height="256"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="image-set">
-                    <h3>Multi-frequency Pattern</h3>
-                    <div class="image-pair">
-                        <div class="image-item">
-                            <h4>Turbo</h4>
-                            <canvas id="img-pattern-turbo" width="256" height="256"></canvas>
-                        </div>
-                        <div class="image-item">
-                            <h4>Generated</h4>
-                            <canvas id="img-pattern-gen" width="256" height="256"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="turbo.js"></script>
-    <script src="perceptual.js"></script>
-    <script src="spline.js"></script>
-    <script src="generator.js"></script>
-    <script src="app.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
+
 </html>
